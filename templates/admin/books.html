@@ -1,0 +1,55 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Livros — {{ STORE_NAME }} Admin{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Livros</h1>
+  <a class="btn btn-primary" href="{{ url_for('admin_book_new') }}">+ Adicionar livro</a>
+</div>
+
+{% if books %}
+  <table class="table table-books">
+    <thead>
+      <tr>
+        <th></th>
+        <th>Título</th>
+        <th>Autor</th>
+        <th>Gênero</th>
+        <th>Preço</th>
+        <th>Estoque</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for book in books %}
+        <tr>
+          <td>
+            {% if book.image_filename %}
+              <img class="thumb" src="{{ url_for('uploaded_file', filename=book.image_filename) }}" alt="">
+            {% else %}
+              <div class="thumb-placeholder">📖</div>
+            {% endif %}
+          </td>
+          <td><strong>{{ book.title }}</strong></td>
+          <td>{{ book.author }}</td>
+          <td><span class="badge">{{ book.genre }}</span></td>
+          <td>{{ format_brl(book.price) }}</td>
+          <td class="{% if book.stock == 0 %}text-danger{% endif %}">{{ book.stock }}</td>
+          <td class="actions">
+            <a class="btn btn-small" href="{{ url_for('admin_book_edit', book_id=book.id) }}">Editar</a>
+            <form method="post" action="{{ url_for('admin_book_delete', book_id=book.id) }}"
+                  onsubmit="return confirm('Remover &quot;{{ book.title|e }}&quot;?');" style="display:inline;">
+              <button type="submit" class="btn btn-small btn-danger">Remover</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <div class="empty-state">
+    <h2>Nenhum livro cadastrado</h2>
+    <p>Comece adicionando o primeiro livro.</p>
+    <a class="btn btn-primary" href="{{ url_for('admin_book_new') }}">+ Adicionar livro</a>
+  </div>
+{% endif %}
+{% endblock %}

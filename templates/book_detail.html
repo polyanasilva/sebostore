@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}{{ book.title }} — {{ STORE_NAME }}{% endblock %}
+{% block content %}
+<a class="back-link" href="{{ url_for('index') }}">← Voltar ao catálogo</a>
+
+<article class="book-detail">
+  <div class="book-detail-cover">
+    {% if book.image_filename %}
+      <img src="{{ url_for('uploaded_file', filename=book.image_filename) }}" alt="{{ book.title }}">
+    {% else %}
+      <div class="book-cover-placeholder big">📖</div>
+    {% endif %}
+  </div>
+  <div class="book-detail-info">
+    <span class="book-genre">{{ book.genre }}</span>
+    <h1>{{ book.title }}</h1>
+    <p class="book-author">por {{ book.author }}</p>
+    <p class="book-price big">{{ format_brl(book.price) }}</p>
+    {% if book.description %}
+      <p class="book-description">{{ book.description }}</p>
+    {% endif %}
+    <p class="book-stock">
+      {% if book.stock > 0 %}
+        ✓ {{ book.stock }} em estoque
+      {% else %}
+        ✗ Sem estoque no momento
+      {% endif %}
+    </p>
+    {% if book.stock > 0 %}
+      <button class="btn btn-primary btn-big add-to-cart"
+              data-id="{{ book.id }}"
+              data-title="{{ book.title }}"
+              data-author="{{ book.author }}"
+              data-price="{{ '%.2f'|format(book.price) }}"
+              data-image="{{ book.image_filename or '' }}">
+        Adicionar ao carrinho
+      </button>
+    {% endif %}
+  </div>
+</article>
+
+{% if similar %}
+  <section class="similar-books">
+    <div class="similar-header">
+      <h2>Você também pode gostar</h2>
+      <div class="similar-nav" aria-hidden="true">
+        <button type="button" class="similar-nav-btn" data-dir="-1" aria-label="Anterior">‹</button>
+        <button type="button" class="similar-nav-btn" data-dir="1" aria-label="Próximo">›</button>
+      </div>
+    </div>
+
+    <div class="similar-scroll" id="similar-scroll">
+      {% for b in similar %}
+        <article class="similar-card">
+          <a href="{{ url_for('book_detail', book_id=b.id) }}" class="similar-card-cover">
+            {% if b.image_filename %}
+              <img src="{{ url_for('uploaded_file', filename=b.image_filename) }}" alt="{{ b.title }}" loading="lazy">
+            {% else %}
+              <div class="book-cover-placeholder">📖</div>
+            {% endif %}
+          </a>
+          <div class="similar-card-info">
+            <span class="book-genre">{{ b.genre }}</span>
+            <h3 class="similar-card-title">
+              <a href="{{ url_for('book_detail', book_id=b.id) }}">{{ b.title }}</a>
+            </h3>
+            <p class="book-author">{{ b.author }}</p>
+            <p class="book-price">{{ format_brl(b.price) }}</p>
+            <button class="btn btn-primary btn-small add-to-cart"
+                    data-id="{{ b.id }}"
+                    data-title="{{ b.title }}"
+                    data-author="{{ b.author }}"
+                    data-price="{{ '%.2f'|format(b.price) }}"
+                    data-image="{{ b.image_filename or '' }}">
+              Adicionar
+            </button>
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  </section>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  // Setas do carrossel — scroll suave de uma "página" por clique
+  (function () {
+    const scroller = document.getElementById("similar-scroll");
+    if (!scroller) return;
+    document.querySelectorAll(".similar-nav-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const dir = parseInt(btn.dataset.dir, 10) || 1;
+        const card = scroller.querySelector(".similar-card");
+        const step = card ? card.offsetWidth + 16 : 200;
+        scroller.scrollBy({ left: step * dir * 2, behavior: "smooth" });
+      });
+    });
+  })();
+</script>
+{% endblock %}

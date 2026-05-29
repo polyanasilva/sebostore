@@ -1,0 +1,22 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Login — {{ STORE_NAME }} Admin{% endblock %}
+{% block content %}
+<div class="login-card">
+  <h1>Acesso administrativo</h1>
+  <p class="muted">Entre com seu usuário e senha de administrador.</p>
+  <form method="post" class="form">
+    <label>
+      Usuário
+      <input type="text" name="username" required autocomplete="username" autofocus>
+    </label>
+    <label>
+      Senha
+      <input type="password" name="password" required autocomplete="current-password">
+    </label>
+    <button type="submit" class="btn btn-primary btn-big">Entrar</button>
+  </form>
+  <p class="muted small">
+    <a href="{{ url_for('index') }}">← Voltar ao site</a>
+  </p>
+</div>
+{% endblock %}

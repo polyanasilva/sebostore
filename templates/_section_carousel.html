@@ -1,0 +1,39 @@
+<section class="home-section" data-section="{{ section.slug }}">
+  <div class="home-section-header">
+    <h2 class="home-section-title">{{ section.title }}</h2>
+    <div class="home-section-nav" aria-hidden="true">
+      <button type="button" class="similar-nav-btn" data-dir="-1" aria-label="Anterior">‹</button>
+      <button type="button" class="similar-nav-btn" data-dir="1" aria-label="Próximo">›</button>
+    </div>
+  </div>
+
+  <div class="similar-scroll home-section-scroll">
+    {% for b in section.books %}
+      <article class="similar-card">
+        <a href="{{ url_for('book_detail', book_id=b.id) }}" class="similar-card-cover">
+          {% if b.image_filename %}
+            <img src="{{ url_for('uploaded_file', filename=b.image_filename) }}" alt="{{ b.title }}" loading="lazy">
+          {% else %}
+            <div class="book-cover-placeholder">📖</div>
+          {% endif %}
+        </a>
+        <div class="similar-card-info">
+          <span class="book-genre">{{ b.genre }}</span>
+          <h3 class="similar-card-title">
+            <a href="{{ url_for('book_detail', book_id=b.id) }}">{{ b.title }}</a>
+          </h3>
+          <p class="book-author">{{ b.author }}</p>
+          <p class="book-price">{{ format_brl(b.price) }}</p>
+          <button class="btn btn-primary btn-small add-to-cart"
+                  data-id="{{ b.id }}"
+                  data-title="{{ b.title }}"
+                  data-author="{{ b.author }}"
+                  data-price="{{ '%.2f'|format(b.price) }}"
+                  data-image="{{ b.image_filename or '' }}">
+            Adicionar
+          </button>
+        </div>
+      </article>
+    {% endfor %}
+  </div>
+</section>

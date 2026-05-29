@@ -1,0 +1,83 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Pedidos — {{ STORE_NAME }} Admin{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Pedidos</h1>
+  <div class="filter-tabs">
+    <a href="{{ url_for('admin_orders') }}"
+       class="{{ 'active' if not status_filter else '' }}">Todos</a>
+    <a href="{{ url_for('admin_orders', status='pendente') }}"
+       class="{{ 'active' if status_filter == 'pendente' else '' }}">Pendentes</a>
+    <a href="{{ url_for('admin_orders', status='concluido') }}"
+       class="{{ 'active' if status_filter == 'concluido' else '' }}">Concluídos</a>
+    <a href="{{ url_for('admin_orders', status='cancelado') }}"
+       class="{{ 'active' if status_filter == 'cancelado' else '' }}">Cancelados</a>
+  </div>
+</div>
+
+{% if orders %}
+  <div class="orders-list">
+    {% for order in orders %}
+      <article class="order-card">
+        <header class="order-card-header">
+          <div>
+            <h3>Pedido #{{ order.id }}</h3>
+            <p class="muted small">{{ order.created_at }}</p>
+          </div>
+          <div class="order-card-meta">
+            <span class="status status-{{ order.status }}">{{ order.status }}</span>
+            <strong class="order-total">{{ format_brl(order.total) }}</strong>
+          </div>
+        </header>
+
+        <div class="order-customer">
+          <strong>Cliente:</strong> {{ order.customer_name or 'Não informado' }}
+        </div>
+
+        <table class="table table-compact">
+          <thead>
+            <tr>
+              <th>Livro</th>
+              <th>Autor</th>
+              <th class="num">Qtd</th>
+              <th class="num">Preço</th>
+              <th class="num">Subtotal</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for it in order.books %}
+              <tr>
+                <td>{{ it.title }}</td>
+                <td class="muted">{{ it.author }}</td>
+                <td class="num">{{ it.qty }}</td>
+                <td class="num">{{ format_brl(it.price) }}</td>
+                <td class="num">{{ format_brl(it.subtotal) }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+
+        <footer class="order-card-actions">
+          <form method="post" action="{{ url_for('admin_order_status', order_id=order.id) }}" class="inline-form">
+            <select name="status">
+              <option value="pendente" {% if order.status == 'pendente' %}selected{% endif %}>Pendente</option>
+              <option value="concluido" {% if order.status == 'concluido' %}selected{% endif %}>Concluído</option>
+              <option value="cancelado" {% if order.status == 'cancelado' %}selected{% endif %}>Cancelado</option>
+            </select>
+            <button type="submit" class="btn btn-small">Atualizar status</button>
+          </form>
+          <form method="post" action="{{ url_for('admin_order_delete', order_id=order.id) }}"
+                onsubmit="return confirm('Remover pedido #{{ order.id }}?');" class="inline-form">
+            <button type="submit" class="btn btn-small btn-danger">Remover</button>
+          </form>
+        </footer>
+      </article>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="empty-state">
+    <h2>Nenhum pedido {% if status_filter %}com status "{{ status_filter }}"{% endif %}</h2>
+    <p>Os pedidos enviados pelo site aparecem aqui.</p>
+  </div>
+{% endif %}
+{% endblock %}

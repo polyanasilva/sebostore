@@ -1,0 +1,51 @@
+<section class="spotlight" data-autoplay="6000">
+  <span class="spotlight-eyebrow">✦ Em destaque ✦</span>
+
+  <div class="spotlight-slides">
+    {% for b in section.books %}
+      <article class="spotlight-slide {% if loop.first %}is-active{% endif %}" data-index="{{ loop.index0 }}">
+        <a href="{{ url_for('book_detail', book_id=b.id) }}" class="spotlight-cover">
+          {% if b.image_filename %}
+            <img src="{{ url_for('uploaded_file', filename=b.image_filename) }}" alt="{{ b.title }}" loading="lazy">
+          {% else %}
+            <div class="book-cover-placeholder big">📖</div>
+          {% endif %}
+        </a>
+        <div class="spotlight-text">
+          <span class="book-genre">{{ b.genre }}</span>
+          <h3 class="spotlight-title">
+            <a href="{{ url_for('book_detail', book_id=b.id) }}">{{ b.title }}</a>
+          </h3>
+          <p class="spotlight-author">por {{ b.author }}</p>
+          <p class="spotlight-description">{{ b.description or 'Um livro especial que merece destaque na nossa estante. Confira na página do livro mais sobre essa obra.' }}</p>
+          <p class="spotlight-price">{{ format_brl(b.price) }}</p>
+          <div class="spotlight-actions">
+            {% if b.stock > 0 %}
+              <button class="btn btn-primary add-to-cart"
+                      data-id="{{ b.id }}"
+                      data-title="{{ b.title }}"
+                      data-author="{{ b.author }}"
+                      data-price="{{ '%.2f'|format(b.price) }}"
+                      data-image="{{ b.image_filename or '' }}">
+                Adicionar ao carrinho
+              </button>
+            {% endif %}
+            <a class="btn-link" href="{{ url_for('book_detail', book_id=b.id) }}">Ver detalhes →</a>
+          </div>
+        </div>
+      </article>
+    {% endfor %}
+  </div>
+
+  {% if section.books|length > 1 %}
+    <div class="spotlight-controls">
+      <button type="button" class="spotlight-arrow" data-dir="-1" aria-label="Destaque anterior">‹</button>
+      <div class="spotlight-dots">
+        {% for b in section.books %}
+          <button type="button" class="spotlight-dot {% if loop.first %}is-active{% endif %}" data-index="{{ loop.index0 }}" aria-label="Destaque {{ loop.index }}"></button>
+        {% endfor %}
+      </div>
+      <button type="button" class="spotlight-arrow" data-dir="1" aria-label="Próximo destaque">›</button>
+    </div>
+  {% endif %}
+</section>

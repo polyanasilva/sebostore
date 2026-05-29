@@ -1,0 +1,65 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Painel — {{ STORE_NAME }} Admin{% endblock %}
+{% block content %}
+<h1>Painel</h1>
+<p class="muted">Olá, {{ session.admin_username }} — visão geral da loja.</p>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <span class="stat-label">Livros cadastrados</span>
+    <span class="stat-value">{{ total_books }}</span>
+    <a class="btn-link" href="{{ url_for('admin_books') }}">Gerenciar →</a>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">Pedidos no total</span>
+    <span class="stat-value">{{ total_orders }}</span>
+    <a class="btn-link" href="{{ url_for('admin_orders') }}">Ver todos →</a>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">Pedidos pendentes</span>
+    <span class="stat-value">{{ pending_orders }}</span>
+    <a class="btn-link" href="{{ url_for('admin_orders', status='pendente') }}">Atender →</a>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">Receita concluída</span>
+    <span class="stat-value">{{ format_brl(revenue) }}</span>
+  </div>
+</div>
+
+<section class="card">
+  <div class="card-header">
+    <h2>Pedidos recentes</h2>
+    <a class="btn-link" href="{{ url_for('admin_orders') }}">Ver todos →</a>
+  </div>
+  {% if recent_orders %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Cliente</th>
+          <th>Total</th>
+          <th>Status</th>
+          <th>Data</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for o in recent_orders %}
+          <tr>
+            <td>#{{ o.id }}</td>
+            <td>{{ o.customer_name or '—' }}</td>
+            <td>{{ format_brl(o.total) }}</td>
+            <td><span class="status status-{{ o.status }}">{{ o.status }}</span></td>
+            <td class="muted small">{{ o.created_at }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">Ainda não há pedidos.</p>
+  {% endif %}
+</section>
+
+<div class="quick-actions">
+  <a class="btn btn-primary" href="{{ url_for('admin_book_new') }}">+ Adicionar livro</a>
+</div>
+{% endblock %}

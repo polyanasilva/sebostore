@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Carrinho — {{ STORE_NAME }}{% endblock %}
+{% block content %}
+<h1>Seu carrinho</h1>
+
+<div id="cart-empty" class="empty-state" style="display:none;">
+  <h2>Seu carrinho está vazio</h2>
+  <p>Adicione livros ao carrinho para finalizar o pedido.</p>
+  <a class="btn btn-primary" href="{{ url_for('index') }}">Ver catálogo</a>
+</div>
+
+<div id="cart-content" style="display:none;">
+  <div id="cart-items" class="cart-items"></div>
+
+  <div class="cart-summary">
+    <div class="cart-total">
+      Total: <strong id="cart-total">R$ 0,00</strong>
+    </div>
+
+    <form id="checkout-form" class="checkout-form">
+      <label for="customer_name">
+        Seu nome <span class="hint">(opcional, ajuda o vendedor a identificar você)</span>
+      </label>
+      <input type="text" id="customer_name" name="customer_name" placeholder="Ex: Maria Silva" maxlength="100">
+
+      <button type="submit" class="btn btn-whatsapp btn-big" id="checkout-btn">
+        Finalizar pelo WhatsApp
+      </button>
+      <p class="checkout-note">
+        Ao finalizar, você será direcionado(a) ao WhatsApp do vendedor com a lista de livros já preenchida.
+      </p>
+    </form>
+  </div>
+</div>
+
+<script>
+  window.WHATSAPP_NUMBER = "{{ whatsapp_number }}";
+</script>
+{% endblock %}

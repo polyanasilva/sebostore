@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}{{ STORE_NAME }} — Livros usados, novas histórias{% endblock %}
+
+{% block hero %}
+<section class="home-hero">
+  <div class="home-hero-bg" aria-hidden="true"></div>
+  <div class="home-hero-content">
+    <p class="home-hero-eyebrow">Sebo & Livraria</p>
+    <h1 class="home-hero-title">{{ STORE_NAME }}</h1>
+    <p class="home-hero-tagline">Garimpamos histórias para você.</p>
+    <a href="#sections" class="home-hero-cta">
+      <span>Explorar o acervo</span>
+      <span class="home-hero-cta-arrow" aria-hidden="true">↓</span>
+    </a>
+  </div>
+  <div class="home-hero-scroll" aria-hidden="true">
+    <span></span>
+  </div>
+</section>
+{% endblock %}
+
+{% block content %}
+<div id="sections" class="home-sections">
+  {% if not sections %}
+    <div class="empty-state">
+      <h2>Em breve, novidades</h2>
+      <p>O acervo ainda está sendo montado. Volte logo!</p>
+    </div>
+  {% endif %}
+
+  {% for section in sections %}
+    {% if section.kind == "carousel" %}
+      {% include "_section_carousel.html" %}
+    {% elif section.kind == "spotlight" %}
+      {% include "_section_spotlight.html" %}
+    {% endif %}
+  {% endfor %}
+
+  {% if sections %}
+    <div class="home-cta-bar">
+      <a class="btn btn-primary btn-big" href="{{ url_for('catalog') }}">Ver catálogo completo →</a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/home.js') }}"></script>
+{% endblock %}

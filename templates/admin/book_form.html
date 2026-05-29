@@ -1,0 +1,267 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}{{ "Editar" if book else "Novo" }} livro — Admin{% endblock %}
+{% block content %}
+<a class="back-link" href="{{ url_for('admin_books') }}">← Voltar</a>
+<h1>{{ "Editar" if book else "Adicionar" }} livro</h1>
+
+{% if not book %}
+  {% if AI_ENABLED %}
+    <div class="ai-banner">
+      <span class="ai-icon">✨</span>
+      <div>
+        <strong>Preenchimento automático com IA</strong>
+        <p class="small muted">Comece escolhendo a capa do livro — a IA tentará identificar e preencher os campos. Se não reconhecer, você preenche título e autor e ela completa o resto.</p>
+      </div>
+    </div>
+  {% else %}
+    <div class="ai-banner ai-disabled">
+      <span class="ai-icon">⚠️</span>
+      <div>
+        <strong>IA desativada</strong>
+        <p class="small muted">Configure <code>OPENAI_API_KEY</code> em <code>.env</code> para habilitar o preenchimento automático.</p>
+      </div>
+    </div>
+  {% endif %}
+{% endif %}
+
+<form method="post" enctype="multipart/form-data" class="form form-wide" id="book-form">
+
+  <!-- IMAGEM (primeiro campo no fluxo "novo") -->
+  <div class="image-uploader">
+    <label class="field-label">Capa do livro{% if not book %} *{% endif %}</label>
+    <div class="image-uploader-box" id="image-uploader-box">
+      <input type="file" name="image" id="book-image"
+             accept="image/png,image/jpeg,image/webp,image/gif"
+             {% if not book and AI_ENABLED %}data-auto-identify="1"{% endif %}>
+      <label for="book-image" class="image-uploader-drop" id="image-drop-label">
+        <div class="image-uploader-preview" id="image-preview">
+          {% if book and book.image_filename %}
+            <img src="{{ url_for('uploaded_file', filename=book.image_filename) }}" alt="">
+          {% else %}
+            <div class="placeholder">
+              <span class="placeholder-icon">📷</span>
+              <p>Clique para escolher a capa</p>
+              {% if AI_ENABLED and not book %}
+                <small class="muted">A IA vai tentar identificar o livro automaticamente</small>
+              {% endif %}
+            </div>
+          {% endif %}
+        </div>
+      </label>
+    </div>
+    {% if book and book.image_filename %}
+      <label class="inline-check">
+        <input type="checkbox" name="remove_image" value="1"> Remover imagem atual
+      </label>
+    {% endif %}
+    <small class="hint">PNG, JPG, WEBP ou GIF até 5 MB.</small>
+
+    <!-- Status da IA -->
+    <div id="ai-status" class="ai-status" style="display:none;"></div>
+  </div>
+
+  <label>
+    Título *
+    <input type="text" name="title" id="field-title" required maxlength="200"
+           value="{{ book.title if book else '' }}">
+  </label>
+
+  <label>
+    Autor *
+    <input type="text" name="author" id="field-author" required maxlength="200"
+           value="{{ book.author if book else '' }}">
+  </label>
+
+  <label>
+    Gênero *
+    <select name="genre" id="field-genre" required>
+      <option value="">Selecione…</option>
+      {% for g in GENRES %}
+        <option value="{{ g }}" {% if book and book.genre == g %}selected{% endif %}>{{ g }}</option>
+      {% endfor %}
+    </select>
+  </label>
+
+  <div class="form-row">
+    <label>
+      Preço (R$) *
+      <input type="text" name="price" required inputmode="decimal"
+             placeholder="29,90"
+             value="{{ '%.2f'|format(book.price)|replace('.', ',') if book else '' }}">
+    </label>
+
+    <label>
+      Estoque *
+      <input type="number" name="stock" required min="0" step="1"
+             value="{{ book.stock if book else 1 }}">
+    </label>
+  </div>
+
+  <label>
+    <span class="label-with-action">
+      Descrição
+      {% if AI_ENABLED %}
+        <button type="button" class="btn-link btn-ai-inline" id="btn-complete-ai" title="Preenche gênero e descrição a partir do título e autor">
+          ✨ Completar com IA
+        </button>
+      {% endif %}
+    </span>
+    <textarea name="description" id="field-description" rows="5" maxlength="2000">{{ book.description if book else '' }}</textarea>
+  </label>
+
+  <div class="form-row">
+    <label>
+      Coleção curada
+      <select name="collection">
+        <option value="">— Nenhuma —</option>
+        {% for slug, label in COLLECTIONS %}
+          <option value="{{ slug }}" {% if book and book.collection == slug %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <small class="hint">Define em qual carrossel temático o livro aparece na home.</small>
+    </label>
+
+    <label class="inline-check" style="align-self: end; padding-bottom: 12px;">
+      <input type="checkbox" name="is_featured" value="1" {% if book and book.is_featured %}checked{% endif %}>
+      <span>
+        <strong>✦ Livro em destaque</strong><br>
+        <small class="hint">Aparece no carrossel rotativo da home.</small>
+      </span>
+    </label>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary btn-big">
+      {{ "Salvar alterações" if book else "Adicionar livro" }}
+    </button>
+    <a class="btn-link" href="{{ url_for('admin_books') }}">Cancelar</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_scripts %}
+{% if AI_ENABLED %}
+<script>
+(function () {
+  const imgInput   = document.getElementById("book-image");
+  const preview    = document.getElementById("image-preview");
+  const statusBox  = document.getElementById("ai-status");
+  const fieldTitle = document.getElementById("field-title");
+  const fieldAuth  = document.getElementById("field-author");
+  const fieldGenre = document.getElementById("field-genre");
+  const fieldDesc  = document.getElementById("field-description");
+  const btnComplete = document.getElementById("btn-complete-ai");
+
+  function setStatus(kind, html) {
+    statusBox.style.display = "";
+    statusBox.className = "ai-status ai-status-" + kind;
+    statusBox.innerHTML = html;
+  }
+
+  function clearStatus() {
+    statusBox.style.display = "none";
+    statusBox.innerHTML = "";
+  }
+
+  function showPreview(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      preview.innerHTML = `<img src="${e.target.result}" alt="">`;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function identifyBook(file) {
+    setStatus("loading", '<span class="spinner"></span> Analisando a capa com IA…');
+
+    const fd = new FormData();
+    fd.append("image", file);
+
+    try {
+      const res = await fetch("{{ url_for('admin_api_identify_book') }}", {
+        method: "POST",
+        body: fd,
+      });
+      const data = await res.json();
+
+      if (data.identified) {
+        if (data.title && !fieldTitle.value)   fieldTitle.value = data.title;
+        if (data.author && !fieldAuth.value)   fieldAuth.value  = data.author;
+        if (data.genre)                        fieldGenre.value = data.genre;
+        if (data.description && !fieldDesc.value) fieldDesc.value = data.description;
+        setStatus(
+          "success",
+          `✓ Livro identificado: <strong>${escapeHtml(data.title)}</strong> — ${escapeHtml(data.author)}.<br>` +
+          `<small class="muted">Revise os campos preenchidos antes de salvar.</small>`
+        );
+      } else {
+        const reason = data.reason || data.error || "";
+        setStatus(
+          "warn",
+          `Não consegui identificar o livro pela capa${reason ? ' (' + escapeHtml(reason) + ')' : ''}.<br>` +
+          `<small class="muted">Preencha <strong>Título</strong> e <strong>Autor</strong> manualmente e clique em <em>“Completar com IA”</em> ao lado da Descrição para preencher gênero e sinopse.</small>`
+        );
+        fieldTitle.focus();
+      }
+    } catch (err) {
+      setStatus("error", `Erro ao chamar a IA: ${escapeHtml(err.message || err)}`);
+    }
+  }
+
+  async function completeBook() {
+    const title  = fieldTitle.value.trim();
+    const author = fieldAuth.value.trim();
+    if (!title || !author) {
+      setStatus("warn", "Preencha <strong>Título</strong> e <strong>Autor</strong> antes de pedir o complemento à IA.");
+      return;
+    }
+    setStatus("loading", '<span class="spinner"></span> Buscando gênero e sinopse…');
+    btnComplete.disabled = true;
+    try {
+      const res = await fetch("{{ url_for('admin_api_complete_book') }}", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, author }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        if (data.genre)       fieldGenre.value = data.genre;
+        if (data.description) fieldDesc.value  = data.description;
+        setStatus("success", "✓ Gênero e descrição preenchidos pela IA. Revise antes de salvar.");
+      } else {
+        setStatus("error", "Não foi possível completar: " + escapeHtml(data.error || ""));
+      }
+    } catch (err) {
+      setStatus("error", "Erro: " + escapeHtml(err.message || err));
+    } finally {
+      btnComplete.disabled = false;
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
+  // Quando o admin escolhe uma imagem
+  if (imgInput) {
+    imgInput.addEventListener("change", (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      showPreview(file);
+      if (imgInput.dataset.autoIdentify === "1") {
+        identifyBook(file);
+      } else {
+        clearStatus();
+      }
+    });
+  }
+
+  if (btnComplete) {
+    btnComplete.addEventListener("click", completeBook);
+  }
+})();
+</script>
+{% endif %}
+{% endblock %}

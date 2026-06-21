@@ -2,6 +2,8 @@
 
 Catálogo online de um sebo de Belém - PA. Funciona como vitrine e e-commerce simplificado: o cliente navega o acervo, monta o carrinho e finaliza a compra pelo WhatsApp do vendedor.
 
+![capa do site](static/img/capa.png)
+
 ## Tecnologias
 
 Python · Flask · SQLite · HTML / CSS / JavaScript · OpenAI (gpt-4o-mini com vision) · Pillow · Gunicorn

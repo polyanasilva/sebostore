@@ -1,3 +1,24 @@
-# Sebo Store
+# Sebo Store - Forra Cultural
 
-Catálogo para um grupo de sebos de Belém - PA. O sistema consiste em um site de catálogo para a coleção de sebos parceiros do Forra Cultural. Os clientes navegam, buscam por título/autor, filtram por gênero, montam o carrinho e finalizam o pedido pelo **WhatsApp** — a mensagem já vai pronta com a lista de livros e o total.
+Catálogo online de um sebo de Belém - PA. Funciona como vitrine e e-commerce simplificado: o cliente navega o acervo, monta o carrinho e finaliza a compra pelo WhatsApp do vendedor.
+
+## Tecnologias
+
+Python · Flask · SQLite · HTML / CSS / JavaScript · OpenAI (gpt-4o-mini com vision) · Pillow · Gunicorn
+
+## Funcionalidades
+
+**Site público**
+
+- Home com hero, carrosséis temáticos por gênero e coleções curadas, e destaque rotativo de livros
+- Catálogo com busca por título / autor e filtro por gênero
+- Página de detalhe com recomendação automática de títulos semelhantes
+- Carrinho persistido no navegador e checkout que abre o WhatsApp com o pedido já formatado
+
+**Painel administrativo**
+
+- Cadastro de livros com upload de capa e **identificação automática por IA** a partir da imagem
+- Compressão automática de imagens (reduz uploads de 2-3 MB para ~150 KB)
+- Gestão de coleções curadas (criar, editar, reordenar, remover)
+- Acompanhamento de pedidos com filtro por status
+- Dashboard com estatísticas (livros, pedidos, receita)

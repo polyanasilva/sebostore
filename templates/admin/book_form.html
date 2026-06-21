@@ -7,7 +7,6 @@
 {% if not book %}
   {% if AI_ENABLED %}
     <div class="ai-banner">
-      <span class="ai-icon">✨</span>
       <div>
         <strong>Preenchimento automático com IA</strong>
         <p class="small muted">Comece escolhendo a capa do livro — a IA tentará identificar e preencher os campos. Se não reconhecer, você preenche título e autor e ela completa o resto.</p>
@@ -38,7 +37,6 @@
             <img src="{{ url_for('uploaded_file', filename=book.image_filename) }}" alt="">
           {% else %}
             <div class="placeholder">
-              <span class="placeholder-icon">📷</span>
               <p>Clique para escolher a capa</p>
               {% if AI_ENABLED and not book %}
                 <small class="muted">A IA vai tentar identificar o livro automaticamente</small>
@@ -100,7 +98,7 @@
       Descrição
       {% if AI_ENABLED %}
         <button type="button" class="btn-link btn-ai-inline" id="btn-complete-ai" title="Preenche gênero e descrição a partir do título e autor">
-          ✨ Completar com IA
+          Completar com IA
         </button>
       {% endif %}
     </span>

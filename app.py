@@ -2,6 +2,7 @@ import base64
 import json
 import logging
 import os
+import secrets
 import sqlite3
 import uuid
 from datetime import datetime
@@ -13,28 +14,25 @@ from flask import (
     Flask, abort, flash, g, jsonify, redirect, render_template,
     request, send_from_directory, session, url_for,
 )
+from PIL import Image, ImageOps
 from werkzeug.security import check_password_hash, generate_password_hash
-from werkzeug.utils import secure_filename
 
-# Carrega variáveis de .env (se existir) antes de qualquer config
 load_dotenv()
 
 # ---------------------------------------------------------------------------
 # Configuração
 # ---------------------------------------------------------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# DB_PATH e UPLOAD_DIR podem apontar para um disco persistente via env
-# (recomendado em produção / VPS para sobreviver a redeploys).
 DB_PATH = os.environ.get("SEBO_DB_PATH", os.path.join(BASE_DIR, "sebo_store.db"))
 UPLOAD_DIR = os.environ.get("SEBO_UPLOAD_DIR", os.path.join(BASE_DIR, "static", "uploads"))
 ALLOWED_IMAGE_EXT = {"png", "jpg", "jpeg", "webp", "gif"}
-MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB
+MAX_IMAGE_BYTES = 5 * 1024 * 1024
+IMAGE_MAX_DIM = 1000
+IMAGE_QUALITY = 82
 
-# Número do WhatsApp do vendedor (formato internacional, só dígitos)
-WHATSAPP_NUMBER = os.environ.get("SEBO_WHATSAPP", "5592993280966")
-STORE_NAME = os.environ.get("SEBO_STORE_NAME", "Sebo Store")
+WHATSAPP_NUMBER = os.environ.get("SEBO_WHATSAPP", "")
+STORE_NAME = os.environ.get("SEBO_STORE_NAME", "Forra Cultural")
 
-# OpenAI — usado para identificar livros pela capa
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
 
@@ -44,17 +42,13 @@ GENRES = [
     "Técnico", "Religião", "Poesia", "Quadrinhos", "Outro",
 ]
 
-# Coleções curadas: o admin marca um livro como pertencente a uma destas.
-# Cada entrada é (slug, rótulo exibido).
-COLLECTIONS = [
+DEFAULT_COLLECTIONS = [
     ("classicos",       "Nossa Coleção de Clássicos"),
     ("antes-de-morrer", "Livros para Ler Antes de Morrer"),
     ("indicacao",       "Indicações da Semana"),
 ]
-COLLECTION_SLUGS = {slug for slug, _ in COLLECTIONS}
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = os.environ.get("SEBO_SECRET", "troque-esta-chave-em-producao")
 app.config["MAX_CONTENT_LENGTH"] = MAX_IMAGE_BYTES
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -62,20 +56,25 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("sebo")
 
+_secret = os.environ.get("SEBO_SECRET")
+if not _secret:
+    _secret = secrets.token_hex(32)
+    logger.warning("SEBO_SECRET não configurado — usando chave aleatória.")
+app.config["SECRET_KEY"] = _secret
+
 
 # ---------------------------------------------------------------------------
-# Integração OpenAI (identificação de livro pela capa)
+# OpenAI
 # ---------------------------------------------------------------------------
 _openai_client = None
 
 
 def get_openai_client():
-    """Lazy init para não quebrar a app caso a chave não esteja definida."""
     global _openai_client
     if not OPENAI_API_KEY:
         return None
     if _openai_client is None:
-        from openai import OpenAI  # import local pra startup rápido
+        from openai import OpenAI
         _openai_client = OpenAI(api_key=OPENAI_API_KEY)
     return _openai_client
 
@@ -85,11 +84,6 @@ def _genres_list_str() -> str:
 
 
 def ai_identify_book(image_bytes: bytes, mime_type: str) -> dict:
-    """
-    Tenta identificar o livro a partir da imagem da capa.
-    Retorna sempre um dict com a chave 'identified' (bool) e, se True,
-    title/author/genre/description.
-    """
     client = get_openai_client()
     if client is None:
         return {"identified": False, "error": "OPENAI_API_KEY não configurada."}
@@ -139,7 +133,6 @@ def ai_identify_book(image_bytes: bytes, mime_type: str) -> dict:
     if not data.get("identified"):
         return {"identified": False, "reason": data.get("reason", "")}
 
-    # Normaliza o gênero pra um dos valores conhecidos (case-insensitive)
     g_in = (data.get("genre") or "").strip()
     genre = next((g for g in GENRES if g.lower() == g_in.lower()), None) or "Outro"
 
@@ -153,9 +146,6 @@ def ai_identify_book(image_bytes: bytes, mime_type: str) -> dict:
 
 
 def ai_complete_book(title: str, author: str) -> dict:
-    """
-    Dado título e autor, devolve gênero (da lista) e descrição (sinopse).
-    """
     client = get_openai_client()
     if client is None:
         return {"ok": False, "error": "OPENAI_API_KEY não configurada."}
@@ -205,7 +195,6 @@ def ai_complete_book(title: str, author: str) -> dict:
 # ---------------------------------------------------------------------------
 def get_db():
     if "db" not in g:
-        # timeout faz a conexão aguardar o lock liberar em vez de falhar na hora
         conn = sqlite3.connect(DB_PATH, timeout=15)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
@@ -222,7 +211,6 @@ def close_db(_exc):
 
 def init_db():
     conn = sqlite3.connect(DB_PATH, timeout=15)
-    # WAL melhora concorrência de leitura/escrita (vários workers do gunicorn)
     conn.execute("PRAGMA journal_mode = WAL")
     conn.executescript(
         """
@@ -252,24 +240,50 @@ def init_db():
             username TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS collections (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            slug TEXT UNIQUE NOT NULL,
+            label TEXT NOT NULL,
+            position INTEGER NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
         """
     )
-    # Migrações leves e idempotentes: adiciona colunas que talvez não existam
     existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(books)").fetchall()}
     if "is_featured" not in existing_cols:
         conn.execute("ALTER TABLE books ADD COLUMN is_featured INTEGER NOT NULL DEFAULT 0")
     if "collection" not in existing_cols:
         conn.execute("ALTER TABLE books ADD COLUMN collection TEXT")
 
-    # Cria admin padrão se nenhum existir
+    if conn.execute("SELECT COUNT(*) FROM collections").fetchone()[0] == 0:
+        for i, (slug, label) in enumerate(DEFAULT_COLLECTIONS):
+            conn.execute(
+                "INSERT INTO collections (slug, label, position) VALUES (?, ?, ?)",
+                (slug, label, i),
+            )
+
     cur = conn.execute("SELECT COUNT(*) AS c FROM admins")
     if cur.fetchone()[0] == 0:
+        admin_user = os.environ.get("SEBO_ADMIN_USERNAME", "admin")
+        admin_pass = os.environ.get("SEBO_ADMIN_PASSWORD")
+        generated = False
+        if not admin_pass:
+            admin_pass = secrets.token_urlsafe(12)
+            generated = True
         conn.execute(
             "INSERT INTO admins (username, password_hash) VALUES (?, ?)",
-            ("admin", generate_password_hash("admin123")),
+            (admin_user, generate_password_hash(admin_pass)),
         )
-        print(">>> Admin padrão criado: usuário 'admin' / senha 'admin123'")
-        print(">>> Altere a senha imediatamente em produção.")
+        if generated:
+            sep = "=" * 64
+            print(sep)
+            print(">>> Admin criado com senha aleatória — copie agora!")
+            print(f">>>     usuário: {admin_user}")
+            print(f">>>     senha:   {admin_pass}")
+            print(sep)
+        else:
+            print(f">>> Admin '{admin_user}' criado com a senha de SEBO_ADMIN_PASSWORD.")
     conn.commit()
     conn.close()
 
@@ -282,15 +296,35 @@ def allowed_file(filename: str) -> bool:
 
 
 def save_upload(file_storage):
-    """Salva imagem enviada e devolve o nome do arquivo, ou None."""
     if not file_storage or not file_storage.filename:
         return None
     if not allowed_file(file_storage.filename):
         return None
-    ext = file_storage.filename.rsplit(".", 1)[1].lower()
-    new_name = f"{uuid.uuid4().hex}.{ext}"
-    file_storage.save(os.path.join(UPLOAD_DIR, new_name))
-    return new_name
+    try:
+        img = Image.open(file_storage.stream)
+        img = ImageOps.exif_transpose(img)
+        if img.mode in ("RGBA", "LA", "P"):
+            if img.mode == "P":
+                img = img.convert("RGBA")
+            background = Image.new("RGB", img.size, (255, 255, 255))
+            alpha = img.split()[-1] if img.mode in ("RGBA", "LA") else None
+            background.paste(img, mask=alpha)
+            img = background
+        elif img.mode != "RGB":
+            img = img.convert("RGB")
+        img.thumbnail((IMAGE_MAX_DIM, IMAGE_MAX_DIM), Image.Resampling.LANCZOS)
+        new_name = f"{uuid.uuid4().hex}.jpg"
+        img.save(
+            os.path.join(UPLOAD_DIR, new_name),
+            "JPEG",
+            quality=IMAGE_QUALITY,
+            optimize=True,
+            progressive=True,
+        )
+        return new_name
+    except Exception:
+        logger.exception("Erro ao processar imagem")
+        return None
 
 
 def delete_upload(filename):
@@ -312,6 +346,24 @@ def login_required(view):
             return redirect(url_for("admin_login", next=request.path))
         return view(*args, **kwargs)
     return wrapped
+
+
+def get_collections():
+    return get_db().execute(
+        "SELECT * FROM collections ORDER BY position, label"
+    ).fetchall()
+
+
+def get_collection_slugs():
+    return {r["slug"] for r in get_collections()}
+
+
+def slugify(text: str) -> str:
+    import re, unicodedata
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(c for c in text if not unicodedata.combining(c))
+    text = re.sub(r"[^a-zA-Z0-9]+", "-", text).strip("-").lower()
+    return text[:60] or "colecao"
 
 
 def parse_price(value):
@@ -346,7 +398,7 @@ def inject_globals():
     return {
         "STORE_NAME": STORE_NAME,
         "GENRES": GENRES,
-        "COLLECTIONS": COLLECTIONS,
+        "COLLECTIONS": get_collections(),
         "format_brl": format_brl,
         "current_year": datetime.now().year,
         "AI_ENABLED": bool(OPENAI_API_KEY),
@@ -389,7 +441,6 @@ def section_featured(limit=3):
 
 
 def genres_with_books(min_books=3):
-    """Retorna lista de gêneros que têm pelo menos min_books livros em estoque."""
     rows = _fetch(
         "SELECT genre, COUNT(*) AS c FROM books WHERE stock > 0 GROUP BY genre HAVING c >= ?",
         (min_books,),
@@ -399,58 +450,49 @@ def genres_with_books(min_books=3):
 
 @app.route("/")
 def index():
-    """Home com hero + carrosséis temáticos + destaques rotativos."""
-    sections = []  # lista ordenada: [{kind, title, slug, books}, ...]
+    sections = []
 
-    # 1. Novidades sempre primeiro
     novelties = section_novelties()
     if novelties:
         sections.append({"kind": "carousel", "title": "Novidades", "slug": "novidades", "books": novelties})
 
-    # 2. Coleção de Clássicos
-    classicos = section_by_collection("classicos")
-    if classicos:
-        sections.append({"kind": "carousel", "title": "Nossa Coleção de Clássicos", "slug": "classicos", "books": classicos})
+    collections = get_collections()
+    classicos_slug = "classicos"
+    early = [c for c in collections if c["slug"] == classicos_slug]
+    late  = [c for c in collections if c["slug"] != classicos_slug]
+    for col in early:
+        books = section_by_collection(col["slug"])
+        if books:
+            sections.append({"kind": "carousel", "title": col["label"], "slug": col["slug"], "books": books})
 
-    # 3. Carrossel automático por gênero (Fantasia primeiro se existir, depois outros)
     available_genres = genres_with_books()
-    # Ordena pra "Fantasia" vir primeiro se existir (a usuária citou explicitamente)
     available_genres.sort(key=lambda g: (0 if g == "Fantasia" else 1, g))
-    for g in available_genres[:3]:  # limita pra não ficar enorme
+    for g in available_genres[:3]:
         books = section_by_genre(g)
         if books:
             sections.append({"kind": "carousel", "title": f"Livros de {g}", "slug": f"genero-{g.lower()}", "books": books})
 
-    # 4. Indicações da Semana
-    indicacoes = section_by_collection("indicacao")
-    if indicacoes:
-        sections.append({"kind": "carousel", "title": "Indicações da Semana", "slug": "indicacao", "books": indicacoes})
+    for col in late:
+        books = section_by_collection(col["slug"])
+        if books:
+            sections.append({"kind": "carousel", "title": col["label"], "slug": col["slug"], "books": books})
 
-    # 5. Para Ler Antes de Morrer
-    antes = section_by_collection("antes-de-morrer")
-    if antes:
-        sections.append({"kind": "carousel", "title": "Livros para Ler Antes de Morrer", "slug": "antes-de-morrer", "books": antes})
-
-    # Intercala os destaques entre os carrosséis
     featured = section_featured(limit=3)
     final_sections = []
     if sections and featured:
-        # Insere o bloco de destaque depois do 1º carrossel (e antes do último, se houver muitos)
-        # Estratégia simples: 1 bloco de destaque entre carrosséis, posicionado no meio
         mid = max(1, len(sections) // 2)
         for i, sec in enumerate(sections):
             final_sections.append(sec)
             if i == 0 and len(sections) > 1:
                 final_sections.append({"kind": "spotlight", "books": featured})
-            elif i == mid and len(sections) > 3:
-                # Se houver muitas seções, intercala um 2º bloco no meio. Usa os mesmos featured (gira automático no front).
+            elif i == mid and len(sections) > 8:
                 final_sections.append({"kind": "spotlight", "books": featured})
     else:
         final_sections = sections
         if featured and not sections:
             final_sections.insert(0, {"kind": "spotlight", "books": featured})
 
-    return render_template("home.html", sections=final_sections, has_books=bool(sections))
+    return render_template("home.html", sections=final_sections)
 
 
 @app.route("/catalogo")
@@ -478,14 +520,6 @@ def catalog():
 
 
 def get_similar_books(book_id: int, genre: str, author: str, limit: int = 6):
-    """
-    Recomenda livros parecidos:
-      relevância 3 = mesmo gênero E mesmo autor
-      relevância 2 = mesmo gênero
-      relevância 1 = mesmo autor
-      relevância 0 = qualquer outro
-    Filtra o próprio livro e itens sem estoque. RANDOM() varia a vitrine entre visitas.
-    """
     db = get_db()
     sql = """
         SELECT *,
@@ -515,19 +549,16 @@ def book_detail(book_id):
 
 @app.route("/uploads/<path:filename>")
 def uploaded_file(filename):
-    """Serve as imagens enviadas. Uma rota dedicada (em vez de static/) permite
-    que UPLOAD_DIR aponte para um disco/volume persistente em produção."""
     return send_from_directory(UPLOAD_DIR, filename)
 
 
 @app.route("/carrinho")
 def cart():
-    return render_template("cart.html", whatsapp_number=WHATSAPP_NUMBER)
+    return render_template("cart.html")
 
 
 @app.route("/api/books")
 def api_books():
-    """Endpoint usado pelo carrinho para revalidar os itens (preço/estoque atual)."""
     ids = request.args.get("ids", "")
     ids = [int(x) for x in ids.split(",") if x.strip().isdigit()]
     if not ids:
@@ -543,7 +574,6 @@ def api_books():
 
 @app.route("/api/checkout", methods=["POST"])
 def api_checkout():
-    """Salva o pedido no banco e devolve a URL do WhatsApp com a mensagem pronta."""
     data = request.get_json(silent=True) or {}
     customer_name = (data.get("customer_name") or "").strip()
     items_in = data.get("items") or []
@@ -596,7 +626,6 @@ def api_checkout():
     order_id = db.execute("SELECT last_insert_rowid() AS id").fetchone()["id"]
     db.commit()
 
-    # Monta a mensagem para o WhatsApp
     lines = [f"Olá, {STORE_NAME}! Gostaria de comprar:", ""]
     for i, it in enumerate(saved_items, start=1):
         lines.append(
@@ -617,7 +646,7 @@ def api_checkout():
 # ---------------------------------------------------------------------------
 # Admin
 # ---------------------------------------------------------------------------
-@app.route("/admin/login", methods=["GET", "POST"])
+@app.route("/adminFC/login", methods=["GET", "POST"])
 def admin_login():
     if request.method == "POST":
         username = request.form.get("username", "").strip()
@@ -635,14 +664,14 @@ def admin_login():
     return render_template("admin/login.html")
 
 
-@app.route("/admin/logout")
+@app.route("/adminFC/logout")
 def admin_logout():
     session.clear()
     flash("Você saiu.", "success")
     return redirect(url_for("admin_login"))
 
 
-@app.route("/admin")
+@app.route("/adminFC")
 @login_required
 def admin_dashboard():
     db = get_db()
@@ -654,6 +683,7 @@ def admin_dashboard():
     revenue = db.execute(
         "SELECT COALESCE(SUM(total), 0) AS s FROM orders WHERE status = 'concluido'"
     ).fetchone()["s"]
+    total_collections = db.execute("SELECT COUNT(*) AS c FROM collections").fetchone()["c"]
     recent_orders = db.execute(
         "SELECT * FROM orders ORDER BY created_at DESC LIMIT 5"
     ).fetchall()
@@ -663,11 +693,12 @@ def admin_dashboard():
         total_orders=total_orders,
         pending_orders=pending_orders,
         revenue=revenue,
+        total_collections=total_collections,
         recent_orders=recent_orders,
     )
 
 
-@app.route("/admin/livros")
+@app.route("/adminFC/livros")
 @login_required
 def admin_books():
     db = get_db()
@@ -675,10 +706,9 @@ def admin_books():
     return render_template("admin/books.html", books=books)
 
 
-@app.route("/admin/api/identify-book", methods=["POST"])
+@app.route("/adminFC/api/identify-book", methods=["POST"])
 @login_required
 def admin_api_identify_book():
-    """Recebe a imagem da capa, devolve dados do livro identificado (ou identified=false)."""
     file = request.files.get("image")
     if not file or not file.filename:
         return jsonify({"identified": False, "error": "Envie uma imagem."}), 400
@@ -695,10 +725,9 @@ def admin_api_identify_book():
     return jsonify(result), status
 
 
-@app.route("/admin/api/complete-book", methods=["POST"])
+@app.route("/adminFC/api/complete-book", methods=["POST"])
 @login_required
 def admin_api_complete_book():
-    """Recebe título e autor; devolve gênero + descrição sugeridos pela IA."""
     body = request.get_json(silent=True) or {}
     title = (body.get("title") or "").strip()
     author = (body.get("author") or "").strip()
@@ -707,7 +736,7 @@ def admin_api_complete_book():
     return jsonify(result), status
 
 
-@app.route("/admin/livros/novo", methods=["GET", "POST"])
+@app.route("/adminFC/livros/novo", methods=["GET", "POST"])
 @login_required
 def admin_book_new():
     if request.method == "POST":
@@ -720,7 +749,7 @@ def admin_book_new():
             stock = parse_stock(request.form.get("stock", "1"))
             is_featured = 1 if request.form.get("is_featured") == "1" else 0
             collection = request.form.get("collection", "").strip()
-            if collection and collection not in COLLECTION_SLUGS:
+            if collection and collection not in get_collection_slugs():
                 collection = ""
             if not title or not author or not genre:
                 raise ValueError("Título, autor e gênero são obrigatórios.")
@@ -741,7 +770,7 @@ def admin_book_new():
     return render_template("admin/book_form.html", book=None)
 
 
-@app.route("/admin/livros/<int:book_id>/editar", methods=["GET", "POST"])
+@app.route("/adminFC/livros/<int:book_id>/editar", methods=["GET", "POST"])
 @login_required
 def admin_book_edit(book_id):
     db = get_db()
@@ -758,7 +787,7 @@ def admin_book_edit(book_id):
             stock = parse_stock(request.form.get("stock", "0"))
             is_featured = 1 if request.form.get("is_featured") == "1" else 0
             collection = request.form.get("collection", "").strip()
-            if collection and collection not in COLLECTION_SLUGS:
+            if collection and collection not in get_collection_slugs():
                 collection = ""
             if not title or not author or not genre:
                 raise ValueError("Título, autor e gênero são obrigatórios.")
@@ -789,7 +818,7 @@ def admin_book_edit(book_id):
     return render_template("admin/book_form.html", book=book)
 
 
-@app.route("/admin/livros/<int:book_id>/remover", methods=["POST"])
+@app.route("/adminFC/livros/<int:book_id>/remover", methods=["POST"])
 @login_required
 def admin_book_delete(book_id):
     db = get_db()
@@ -803,7 +832,7 @@ def admin_book_delete(book_id):
     return redirect(url_for("admin_books"))
 
 
-@app.route("/admin/pedidos")
+@app.route("/adminFC/pedidos")
 @login_required
 def admin_orders():
     status_filter = request.args.get("status", "").strip()
@@ -826,7 +855,7 @@ def admin_orders():
     return render_template("admin/orders.html", orders=orders, status_filter=status_filter)
 
 
-@app.route("/admin/pedidos/<int:order_id>/status", methods=["POST"])
+@app.route("/adminFC/pedidos/<int:order_id>/status", methods=["POST"])
 @login_required
 def admin_order_status(order_id):
     new_status = request.form.get("status", "").strip()
@@ -840,7 +869,7 @@ def admin_order_status(order_id):
     return redirect(url_for("admin_orders"))
 
 
-@app.route("/admin/pedidos/<int:order_id>/remover", methods=["POST"])
+@app.route("/adminFC/pedidos/<int:order_id>/remover", methods=["POST"])
 @login_required
 def admin_order_delete(order_id):
     db = get_db()
@@ -850,7 +879,139 @@ def admin_order_delete(order_id):
     return redirect(url_for("admin_orders"))
 
 
-@app.route("/admin/senha", methods=["GET", "POST"])
+# ---------------------------------------------------------------------------
+# Admin — Coleções
+# ---------------------------------------------------------------------------
+@app.route("/adminFC/colecoes")
+@login_required
+def admin_collections():
+    db = get_db()
+    rows = db.execute(
+        """SELECT c.*, (
+                SELECT COUNT(*) FROM books b WHERE b.collection = c.slug
+           ) AS books_count
+           FROM collections c
+           ORDER BY c.position, c.label"""
+    ).fetchall()
+    return render_template("admin/collections.html", collections=rows)
+
+
+def _save_collection(label: str, slug: str | None = None, existing_id: int | None = None):
+    label = (label or "").strip()
+    if not label:
+        raise ValueError("Nome da coleção é obrigatório.")
+    if len(label) > 120:
+        raise ValueError("Nome muito longo (máx. 120 caracteres).")
+
+    slug = (slug or "").strip() or slugify(label)
+    slug = slugify(slug)
+
+    db = get_db()
+    if existing_id is None:
+        dup = db.execute("SELECT id FROM collections WHERE slug = ?", (slug,)).fetchone()
+    else:
+        dup = db.execute(
+            "SELECT id FROM collections WHERE slug = ? AND id != ?",
+            (slug, existing_id),
+        ).fetchone()
+    if dup:
+        raise ValueError(f"Já existe uma coleção com o slug '{slug}'.")
+
+    if existing_id is None:
+        nxt = db.execute("SELECT COALESCE(MAX(position), -1) + 1 FROM collections").fetchone()[0]
+        db.execute(
+            "INSERT INTO collections (slug, label, position) VALUES (?, ?, ?)",
+            (slug, label, nxt),
+        )
+    else:
+        old = db.execute("SELECT slug FROM collections WHERE id = ?", (existing_id,)).fetchone()
+        if old is None:
+            raise ValueError("Coleção não encontrada.")
+        db.execute(
+            "UPDATE collections SET slug = ?, label = ? WHERE id = ?",
+            (slug, label, existing_id),
+        )
+        if old["slug"] != slug:
+            db.execute(
+                "UPDATE books SET collection = ? WHERE collection = ?",
+                (slug, old["slug"]),
+            )
+    db.commit()
+    return slug
+
+
+@app.route("/adminFC/colecoes/nova", methods=["GET", "POST"])
+@login_required
+def admin_collection_new():
+    if request.method == "POST":
+        try:
+            _save_collection(
+                label=request.form.get("label", ""),
+                slug=request.form.get("slug", ""),
+            )
+            flash("Coleção criada.", "success")
+            return redirect(url_for("admin_collections"))
+        except ValueError as e:
+            flash(str(e), "error")
+    return render_template("admin/collection_form.html", collection=None)
+
+
+@app.route("/adminFC/colecoes/<int:col_id>/editar", methods=["GET", "POST"])
+@login_required
+def admin_collection_edit(col_id):
+    db = get_db()
+    col = db.execute("SELECT * FROM collections WHERE id = ?", (col_id,)).fetchone()
+    if col is None:
+        abort(404)
+    if request.method == "POST":
+        try:
+            _save_collection(
+                label=request.form.get("label", ""),
+                slug=request.form.get("slug", ""),
+                existing_id=col_id,
+            )
+            flash("Coleção atualizada.", "success")
+            return redirect(url_for("admin_collections"))
+        except ValueError as e:
+            flash(str(e), "error")
+    return render_template("admin/collection_form.html", collection=col)
+
+
+@app.route("/adminFC/colecoes/<int:col_id>/remover", methods=["POST"])
+@login_required
+def admin_collection_delete(col_id):
+    db = get_db()
+    col = db.execute("SELECT * FROM collections WHERE id = ?", (col_id,)).fetchone()
+    if col is None:
+        abort(404)
+    db.execute("UPDATE books SET collection = NULL WHERE collection = ?", (col["slug"],))
+    db.execute("DELETE FROM collections WHERE id = ?", (col_id,))
+    db.commit()
+    flash(f"Coleção \"{col['label']}\" removida.", "success")
+    return redirect(url_for("admin_collections"))
+
+
+@app.route("/adminFC/colecoes/reordenar", methods=["POST"])
+@login_required
+def admin_collection_reorder():
+    col_id = request.form.get("id", type=int)
+    direction = request.form.get("dir")
+    db = get_db()
+    rows = db.execute("SELECT id, position FROM collections ORDER BY position, label").fetchall()
+    ids = [r["id"] for r in rows]
+    if col_id not in ids:
+        abort(404)
+    idx = ids.index(col_id)
+    swap = idx - 1 if direction == "up" else idx + 1
+    if 0 <= swap < len(ids):
+        # troca de posição
+        db.execute("UPDATE collections SET position = ? WHERE id = ?", (swap, col_id))
+        db.execute("UPDATE collections SET position = ? WHERE id = ?", (idx, ids[swap]))
+        db.commit()
+    return redirect(url_for("admin_collections"))
+
+
+@app.route("/adminFC/senha", methods=["GET", "POST"])
 @login_required
 def admin_change_password():
     if request.method == "POST":
@@ -893,24 +1054,14 @@ def too_large(_e):
 
 
 # ---------------------------------------------------------------------------
-# Inicialização do banco
+# Inicialização
 # ---------------------------------------------------------------------------
-# Roda no import do módulo para que funcione tanto com `python3 app.py` (dev)
-# quanto sob um servidor WSGI como o gunicorn (produção), que não executa o
-# bloco `if __name__ == "__main__"`. init_db() é idempotente.
 init_db()
 
-if app.config["SECRET_KEY"] == "troque-esta-chave-em-producao":
-    logger.warning(
-        "SECRET_KEY usando valor padrão! Defina a variável de ambiente "
-        "SEBO_SECRET com um valor aleatório longo em produção."
-    )
+if not WHATSAPP_NUMBER:
+    logger.warning("SEBO_WHATSAPP não configurado — checkout abrirá sem destinatário.")
 
 
-# ---------------------------------------------------------------------------
-# Entry point (desenvolvimento local)
-# ---------------------------------------------------------------------------
 if __name__ == "__main__":
-    # Em produção use gunicorn: `gunicorn --bind 0.0.0.0:8000 app:app`
     debug = os.environ.get("FLASK_DEBUG", "1") == "1"
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), debug=debug)

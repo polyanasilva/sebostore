@@ -1,0 +1,25 @@
+app = "forra-cultural"
+primary_region = "gru"
+
+[build]
+
+[env]
+  PORT = "8080"
+  FLASK_DEBUG = "0"
+  SEBO_DB_PATH = "/data/sebo_store.db"
+  SEBO_UPLOAD_DIR = "/data/uploads"
+
+[mounts]
+  source = "sebo_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

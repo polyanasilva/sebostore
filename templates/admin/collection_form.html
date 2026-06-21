@@ -1,0 +1,62 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}{{ "Editar" if collection else "Nova" }} coleção — Admin{% endblock %}
+{% block content %}
+<a class="back-link" href="{{ url_for('admin_collections') }}">← Voltar</a>
+<h1>{{ "Editar" if collection else "Nova" }} coleção</h1>
+
+<form method="post" class="form form-wide" id="col-form">
+  <label>
+    Nome
+    <input type="text" name="label" id="field-label" required maxlength="120"
+           value="{{ collection.label if collection else '' }}"
+           placeholder="Ex: Indicações da Semana">
+    <small class="hint">É como a coleção aparece na home (título do carrossel).</small>
+  </label>
+
+  <label>
+    Slug (URL amigável)
+    <input type="text" name="slug" id="field-slug" maxlength="60"
+           value="{{ collection.slug if collection else '' }}"
+           placeholder="ex: indicacoes-da-semana"
+           pattern="[a-z0-9-]*">
+    <small class="hint">
+      Deixe em branco que eu gero automaticamente a partir do nome.
+      Só letras minúsculas, números e hífen.
+      {% if collection %}<br><strong>Atenção:</strong> se mudar o slug, os livros dessa coleção são atualizados automaticamente.{% endif %}
+    </small>
+  </label>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary btn-big">
+      {{ "Salvar alterações" if collection else "Criar coleção" }}
+    </button>
+    <a class="btn-link" href="{{ url_for('admin_collections') }}">Cancelar</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  (function () {
+    const label = document.getElementById("field-label");
+    const slug  = document.getElementById("field-slug");
+    if (!label || !slug) return;
+
+    let slugTouched = slug.value.trim().length > 0;
+    slug.addEventListener("input", () => { slugTouched = true; });
+
+    function slugify(s) {
+      return s.normalize("NFKD")
+              .replace(/[̀-ͯ]/g, "")
+              .replace(/[^a-zA-Z0-9]+/g, "-")
+              .replace(/^-+|-+$/g, "")
+              .toLowerCase()
+              .slice(0, 60);
+    }
+
+    label.addEventListener("input", () => {
+      if (!slugTouched) slug.value = slugify(label.value);
+    });
+  })();
+</script>
+{% endblock %}

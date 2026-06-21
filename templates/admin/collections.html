@@ -1,0 +1,63 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Coleções — {{ STORE_NAME }} Admin{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Coleções curadas</h1>
+  <a class="btn btn-primary" href="{{ url_for('admin_collection_new') }}">+ Nova coleção</a>
+</div>
+
+<p class="muted">
+  As coleções aparecem como carrosséis temáticos na home. Em cada livro, no
+  formulário de cadastro/edição, você escolhe a qual coleção ele pertence.
+</p>
+
+{% if collections %}
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Ordem</th>
+        <th>Nome (aparece na home)</th>
+        <th>Slug</th>
+        <th>Livros</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in collections %}
+        <tr>
+          <td>
+            <form method="post" action="{{ url_for('admin_collection_reorder') }}" class="inline-form">
+              <input type="hidden" name="id" value="{{ c.id }}">
+              <button type="submit" name="dir" value="up" class="btn btn-small" {% if loop.first %}disabled{% endif %} title="Mover pra cima">↑</button>
+              <button type="submit" name="dir" value="down" class="btn btn-small" {% if loop.last %}disabled{% endif %} title="Mover pra baixo">↓</button>
+            </form>
+          </td>
+          <td><strong>{{ c.label }}</strong></td>
+          <td><code>{{ c.slug }}</code></td>
+          <td>
+            {% if c.books_count %}
+              <a href="{{ url_for('admin_books') }}">{{ c.books_count }} livro{{ 's' if c.books_count != 1 }}</a>
+            {% else %}
+              <span class="muted small">vazia</span>
+            {% endif %}
+          </td>
+          <td class="actions">
+            <a class="btn btn-small" href="{{ url_for('admin_collection_edit', col_id=c.id) }}">Editar</a>
+            <form method="post" action="{{ url_for('admin_collection_delete', col_id=c.id) }}"
+                  onsubmit="return confirm('Remover a coleção &quot;{{ c.label|e }}&quot;?\n\nOs {{ c.books_count }} livro(s) ficarão sem coleção (mas não serão apagados).');"
+                  style="display:inline;">
+              <button type="submit" class="btn btn-small btn-danger">Remover</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <div class="empty-state">
+    <h2>Nenhuma coleção</h2>
+    <p>Comece criando uma. Ex: "Indicações da Semana", "Clássicos brasileiros", "Quadrinhos nacionais"…</p>
+    <a class="btn btn-primary" href="{{ url_for('admin_collection_new') }}">+ Criar primeira coleção</a>
+  </div>
+{% endif %}
+{% endblock %}

@@ -24,6 +24,11 @@
     <span class="stat-label">Receita concluída</span>
     <span class="stat-value">{{ format_brl(revenue) }}</span>
   </div>
+  <div class="stat-card">
+    <span class="stat-label">Coleções curadas</span>
+    <span class="stat-value">{{ total_collections }}</span>
+    <a class="btn-link" href="{{ url_for('admin_collections') }}">Gerenciar →</a>
+  </div>
 </div>
 
 <section class="card">

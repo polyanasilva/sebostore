@@ -1,4 +1,3 @@
-// ---------- Setas dos carrosséis temáticos da home ----------
 document.querySelectorAll(".home-section").forEach((section) => {
   const scroller = section.querySelector(".home-section-scroll");
   if (!scroller) return;
@@ -12,7 +11,6 @@ document.querySelectorAll(".home-section").forEach((section) => {
   });
 });
 
-// ---------- Destaque rotativo (3 livros, troca um por vez) ----------
 document.querySelectorAll(".spotlight").forEach((spotlight) => {
   const slides = spotlight.querySelectorAll(".spotlight-slide");
   const dots   = spotlight.querySelectorAll(".spotlight-dot");
@@ -44,7 +42,7 @@ document.querySelectorAll(".spotlight").forEach((spotlight) => {
     btn.addEventListener("click", () => {
       const dir = parseInt(btn.dataset.dir, 10) || 1;
       dir > 0 ? next() : prev();
-      start(); // reinicia o autoplay após interação
+      start();
     });
   });
 
@@ -55,11 +53,8 @@ document.querySelectorAll(".spotlight").forEach((spotlight) => {
     });
   });
 
-  // Pausa quando o mouse está em cima
   spotlight.addEventListener("mouseenter", stop);
   spotlight.addEventListener("mouseleave", start);
-
-  // Pausa quando a página não está visível (economiza CPU)
   document.addEventListener("visibilitychange", () => {
     document.hidden ? stop() : start();
   });
@@ -67,7 +62,6 @@ document.querySelectorAll(".spotlight").forEach((spotlight) => {
   start();
 });
 
-// ---------- Seta scroll suave do CTA do hero ----------
 document.querySelectorAll('a[href^="#"]').forEach((link) => {
   link.addEventListener("click", (e) => {
     const targetId = link.getAttribute("href").slice(1);

@@ -1,4 +1,3 @@
-// Carrinho persistido em localStorage
 const CART_KEY = "sebo_cart_v1";
 
 const Cart = {
@@ -72,7 +71,6 @@ function toast(msg) {
   toast._t = setTimeout(() => el.classList.remove("visible"), 2200);
 }
 
-// Botão "Adicionar" — funciona tanto no catálogo quanto no detalhe
 document.addEventListener("click", (e) => {
   const btn = e.target.closest(".add-to-cart");
   if (!btn) return;
@@ -87,7 +85,6 @@ document.addEventListener("click", (e) => {
   toast(`"${book.title}" adicionado ao carrinho`);
 });
 
-// Renderização do carrinho
 function renderCart() {
   const itemsContainer = document.getElementById("cart-items");
   if (!itemsContainer) return;
@@ -144,7 +141,6 @@ function escapeHtml(s) {
     .replace(/'/g, "&#39;");
 }
 
-// Eventos do carrinho
 document.addEventListener("click", (e) => {
   const removeBtn = e.target.closest(".btn-remove");
   if (removeBtn) {
@@ -161,7 +157,6 @@ document.addEventListener("change", (e) => {
   }
 });
 
-// Checkout — envia para a API, salva pedido, abre WhatsApp
 document.addEventListener("submit", async (e) => {
   const form = e.target.closest("#checkout-form");
   if (!form) return;
@@ -190,7 +185,6 @@ document.addEventListener("submit", async (e) => {
     if (!res.ok) throw new Error(data.error || "Erro ao processar pedido");
 
     Cart.clear();
-    // Abre o WhatsApp e mostra confirmação
     window.location.href = data.whatsapp_url;
   } catch (err) {
     toast(err.message || "Erro ao finalizar pedido");
@@ -199,7 +193,6 @@ document.addEventListener("submit", async (e) => {
   }
 });
 
-// Inicialização
 document.addEventListener("DOMContentLoaded", () => {
   Cart.updateBadge();
   renderCart();

@@ -7,7 +7,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,900;1,400&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=Anton&family=Bangers&family=Inter:wght@400;500;600;700;800&display=swap">
 
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   {% block extra_head %}{% endblock %}
@@ -16,7 +16,7 @@
   <header class="site-header">
     <div class="container header-inner">
       <a class="brand" href="{{ url_for('index') }}">
-        <span class="brand-icon">❦</span>
+        <span class="brand-icon" aria-hidden="true">✦</span>
         <span class="brand-text">{{ STORE_NAME }}</span>
       </a>
       <nav class="site-nav">
@@ -48,12 +48,11 @@
   <footer class="site-footer">
     <div class="container">
       <p class="footer-brand">{{ STORE_NAME }}</p>
-      <p class="footer-tagline">Livros usados, novas histórias.</p>
-      <p class="footer-meta">
-        &copy; {{ current_year }} &middot;
-        <a href="{{ url_for('catalog') }}">Catálogo</a> &middot;
-        <a href="{{ url_for('cart') }}">Carrinho</a> &middot;
-        <a href="{{ url_for('admin_login') }}">Acesso administrativo</a>
+      <p class="footer-tagline">Quadrinhos, livros & cultura garimpada.</p>
+      <p class="footer-meta">&copy; {{ current_year }}</p>
+      <p class="footer-credit">
+        Built by
+        <a href="https://polyanasilva.github.io/portfolio/" target="_blank" rel="noopener noreferrer">Polyana Araújo ↗</a>
       </p>
     </div>
   </footer>

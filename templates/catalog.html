@@ -3,19 +3,30 @@
 {% block content %}
 <section class="page-title">
   <h1>Catálogo completo</h1>
-  <p>Use a busca e os filtros para encontrar seu próximo livro.</p>
+  <p>Use a busca e os filtros para encontrar o que procura.</p>
 </section>
 
 <form class="filters" method="get" action="{{ url_for('catalog') }}">
   <input type="search" name="q" value="{{ q }}" placeholder="Buscar por título, autor ou palavra-chave…" autocomplete="off">
-  <select name="genero">
+
+  <select name="categoria" id="filter-category">
+    <option value="">Todas as categorias</option>
+    {% for cat in available_categories %}
+      <option value="{{ cat.slug }}"
+              data-genres='{{ cat.genres|tojson }}'
+              {% if cat.slug == selected_category %}selected{% endif %}>{{ cat.plural }}</option>
+    {% endfor %}
+  </select>
+
+  <select name="genero" id="filter-genre">
     <option value="">Todos os gêneros</option>
     {% for g in GENRES %}
       <option value="{{ g }}" {% if g == selected_genre %}selected{% endif %}>{{ g }}</option>
     {% endfor %}
   </select>
+
   <button type="submit" class="btn btn-primary">Buscar</button>
-  {% if q or selected_genre %}
+  {% if q or selected_category or selected_genre %}
     <a class="btn-link" href="{{ url_for('catalog') }}">Limpar</a>
   {% endif %}
 </form>
@@ -56,9 +67,58 @@
   </div>
 {% else %}
   <div class="empty-state">
-    <h2>Nenhum livro encontrado</h2>
-    <p>Tente outra busca ou veja todos os livros do catálogo.</p>
+    <h2>Nenhum item encontrado</h2>
+    <p>Tente outra busca ou veja todo o catálogo.</p>
     <a class="btn btn-primary" href="{{ url_for('catalog') }}">Ver tudo</a>
   </div>
 {% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+  const catSelect   = document.getElementById("filter-category");
+  const genreSelect = document.getElementById("filter-genre");
+  if (!catSelect || !genreSelect) return;
+
+  const allGenres = Array.from(genreSelect.options).map(o => ({
+    value: o.value, text: o.text
+  }));
+  const initialGenre = "{{ selected_genre|e }}";
+
+  function refreshGenres() {
+    const opt = catSelect.selectedOptions[0];
+    let allowed = null;
+    if (opt && opt.dataset.genres) {
+      try { allowed = JSON.parse(opt.dataset.genres); } catch (_e) {}
+    }
+
+    genreSelect.innerHTML = "";
+    const empty = document.createElement("option");
+    empty.value = "";
+    empty.textContent = "Todos os gêneros";
+    genreSelect.appendChild(empty);
+
+    const list = (allowed && allowed.length)
+      ? allGenres.filter(g => g.value === "" || allowed.includes(g.value))
+      : allGenres.filter(g => g.value !== "");
+
+    for (const g of list) {
+      if (g.value === "") continue;
+      const o = document.createElement("option");
+      o.value = g.value;
+      o.textContent = g.text;
+      if (g.value === initialGenre) o.selected = true;
+      genreSelect.appendChild(o);
+    }
+  }
+
+  catSelect.addEventListener("change", () => {
+    genreSelect.value = "";
+    refreshGenres();
+  });
+
+  refreshGenres();
+})();
+</script>
 {% endblock %}

@@ -36,11 +36,88 @@ STORE_NAME = os.environ.get("SEBO_STORE_NAME", "Forra Cultural")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
 
-GENRES = [
-    "Romance", "Ficção Científica", "Fantasia", "Suspense", "Terror",
-    "Biografia", "História", "Autoajuda", "Infantil", "Juvenil",
-    "Técnico", "Religião", "Poesia", "Quadrinhos", "Outro",
+CATEGORIES = [
+    {
+        "slug": "livro",
+        "label": "Livro",
+        "plural": "Livros",
+        "genres": [
+            "Romance", "Ficção Científica", "Fantasia", "Suspense", "Terror",
+            "Biografia", "História", "Autoajuda", "Infantil", "Juvenil",
+            "Técnico", "Religião", "Poesia", "Outro",
+        ],
+    },
+    {
+        "slug": "hq",
+        "label": "HQ",
+        "plural": "HQs",
+        "genres": [
+            "Marvel", "DC", "Independente", "Nacional", "Vertigo", "Image",
+            "Dark Horse", "Humor", "Aventura", "Infantil", "Outro",
+        ],
+    },
+    {
+        "slug": "manga",
+        "label": "Mangá",
+        "plural": "Mangás",
+        "genres": [
+            "Shounen", "Shoujo", "Seinen", "Josei", "Kodomo", "Isekai",
+            "Slice of Life", "Ação", "Romance", "Terror", "Esporte",
+            "Comédia", "Outro",
+        ],
+    },
+    {
+        "slug": "dvd",
+        "label": "DVD",
+        "plural": "DVDs",
+        "genres": [
+            "Ação", "Aventura", "Comédia", "Drama", "Terror", "Suspense",
+            "Documentário", "Animação", "Ficção Científica", "Romance",
+            "Musical", "Infantil", "Nacional", "Série", "Anime", "Outro",
+        ],
+    },
+    {
+        "slug": "bluray",
+        "label": "Blu-ray",
+        "plural": "Blu-rays",
+        "genres": [
+            "Ação", "Aventura", "Comédia", "Drama", "Terror", "Suspense",
+            "Documentário", "Animação", "Ficção Científica", "Romance",
+            "Musical", "Infantil", "Nacional", "Série", "Anime", "Outro",
+        ],
+    },
+    {
+        "slug": "cd",
+        "label": "CD",
+        "plural": "CDs",
+        "genres": [
+            "Rock", "MPB", "Pop", "Sertanejo", "Samba", "Bossa Nova", "Jazz",
+            "Blues", "Clássica", "Eletrônica", "Hip-Hop", "Reggae", "Forró",
+            "Gospel", "Internacional", "Trilha Sonora", "Outro",
+        ],
+    },
+    {
+        "slug": "action-figure",
+        "label": "Action Figure",
+        "plural": "Action Figures",
+        "genres": [
+            "Marvel", "DC", "Star Wars", "Anime", "Filmes", "Games",
+            "Cartoon", "Vintage", "Outro",
+        ],
+    },
+    {
+        "slug": "outros",
+        "label": "Outros",
+        "plural": "Outros",
+        "genres": [],
+    },
 ]
+
+CATEGORY_BY_SLUG = {c["slug"]: c for c in CATEGORIES}
+DEFAULT_CATEGORY = "livro"
+
+GENRES = sorted({g for c in CATEGORIES for g in c["genres"]})
+
 
 DEFAULT_COLLECTIONS = [
     ("classicos",       "Nossa Coleção de Clássicos"),
@@ -255,6 +332,10 @@ def init_db():
         conn.execute("ALTER TABLE books ADD COLUMN is_featured INTEGER NOT NULL DEFAULT 0")
     if "collection" not in existing_cols:
         conn.execute("ALTER TABLE books ADD COLUMN collection TEXT")
+    if "category" not in existing_cols:
+        conn.execute(
+            f"ALTER TABLE books ADD COLUMN category TEXT NOT NULL DEFAULT '{DEFAULT_CATEGORY}'"
+        )
 
     if conn.execute("SELECT COUNT(*) FROM collections").fetchone()[0] == 0:
         for i, (slug, label) in enumerate(DEFAULT_COLLECTIONS):
@@ -398,6 +479,8 @@ def inject_globals():
     return {
         "STORE_NAME": STORE_NAME,
         "GENRES": GENRES,
+        "CATEGORIES": CATEGORIES,
+        "CATEGORY_BY_SLUG": CATEGORY_BY_SLUG,
         "COLLECTIONS": get_collections(),
         "format_brl": format_brl,
         "current_year": datetime.now().year,
@@ -419,10 +502,10 @@ def section_novelties(limit=12):
     )
 
 
-def section_by_genre(genre: str, limit=12):
+def section_by_category(slug: str, limit=12):
     return _fetch(
-        "SELECT * FROM books WHERE genre = ? AND stock > 0 ORDER BY created_at DESC LIMIT ?",
-        (genre, limit),
+        "SELECT * FROM books WHERE category = ? AND stock > 0 ORDER BY created_at DESC LIMIT ?",
+        (slug, limit),
     )
 
 
@@ -440,12 +523,12 @@ def section_featured(limit=3):
     )
 
 
-def genres_with_books(min_books=3):
+def categories_with_books(min_items=3):
     rows = _fetch(
-        "SELECT genre, COUNT(*) AS c FROM books WHERE stock > 0 GROUP BY genre HAVING c >= ?",
-        (min_books,),
+        "SELECT category, COUNT(*) AS c FROM books WHERE stock > 0 GROUP BY category HAVING c >= ?",
+        (min_items,),
     )
-    return [r["genre"] for r in rows]
+    return [r["category"] for r in rows]
 
 
 @app.route("/")
@@ -465,12 +548,18 @@ def index():
         if books:
             sections.append({"kind": "carousel", "title": col["label"], "slug": col["slug"], "books": books})
 
-    available_genres = genres_with_books()
-    available_genres.sort(key=lambda g: (0 if g == "Fantasia" else 1, g))
-    for g in available_genres[:3]:
-        books = section_by_genre(g)
+    available_cats = set(categories_with_books())
+    for cat in CATEGORIES:
+        if cat["slug"] not in available_cats:
+            continue
+        books = section_by_category(cat["slug"])
         if books:
-            sections.append({"kind": "carousel", "title": f"Livros de {g}", "slug": f"genero-{g.lower()}", "books": books})
+            sections.append({
+                "kind": "carousel",
+                "title": cat["plural"],
+                "slug": f"cat-{cat['slug']}",
+                "books": books,
+            })
 
     for col in late:
         books = section_by_collection(col["slug"])
@@ -498,7 +587,11 @@ def index():
 @app.route("/catalogo")
 def catalog():
     q = request.args.get("q", "").strip()
+    category = request.args.get("categoria", "").strip()
     genre = request.args.get("genero", "").strip()
+
+    if category and category not in CATEGORY_BY_SLUG:
+        category = ""
 
     sql = "SELECT * FROM books WHERE 1=1"
     params = []
@@ -506,16 +599,23 @@ def catalog():
         sql += " AND (title LIKE ? OR author LIKE ? OR description LIKE ?)"
         like = f"%{q}%"
         params.extend([like, like, like])
+    if category:
+        sql += " AND category = ?"
+        params.append(category)
     if genre:
         sql += " AND genre = ?"
         params.append(genre)
     sql += " ORDER BY created_at DESC"
     books = _fetch(sql, params)
+
+    available_cats = set(categories_with_books(min_items=1))
     return render_template(
         "catalog.html",
         books=books,
         q=q,
+        selected_category=category,
         selected_genre=genre,
+        available_categories=[c for c in CATEGORIES if c["slug"] in available_cats],
     )
 
 
@@ -736,14 +836,33 @@ def admin_api_complete_book():
     return jsonify(result), status
 
 
+def _validate_genre(category_slug: str, genre: str) -> str:
+    """Aceita o gênero se ele estiver na lista da categoria, ou se a categoria for
+    'outros' (que aceita campo livre). Retorna o gênero saneado."""
+    genre = (genre or "").strip()
+    if not genre:
+        raise ValueError("Gênero é obrigatório.")
+    cat = CATEGORY_BY_SLUG.get(category_slug)
+    if cat is None:
+        raise ValueError("Categoria inválida.")
+    if cat["genres"] and genre not in cat["genres"]:
+        raise ValueError("Gênero não pertence a essa categoria.")
+    return genre[:60]
+
+
 @app.route("/adminFC/livros/novo", methods=["GET", "POST"])
 @login_required
 def admin_book_new():
+    category_slug = request.values.get("tipo", DEFAULT_CATEGORY).strip()
+    if category_slug not in CATEGORY_BY_SLUG:
+        category_slug = DEFAULT_CATEGORY
+    category = CATEGORY_BY_SLUG[category_slug]
+
     if request.method == "POST":
         try:
             title = request.form.get("title", "").strip()
             author = request.form.get("author", "").strip()
-            genre = request.form.get("genre", "").strip()
+            genre = _validate_genre(category_slug, request.form.get("genre", ""))
             description = request.form.get("description", "").strip()
             price = parse_price(request.form.get("price"))
             stock = parse_stock(request.form.get("stock", "1"))
@@ -751,23 +870,24 @@ def admin_book_new():
             collection = request.form.get("collection", "").strip()
             if collection and collection not in get_collection_slugs():
                 collection = ""
-            if not title or not author or not genre:
-                raise ValueError("Título, autor e gênero são obrigatórios.")
+            if not title or not author:
+                raise ValueError("Título e autor são obrigatórios.")
             image_name = save_upload(request.files.get("image"))
             db = get_db()
             db.execute(
                 """INSERT INTO books (title, author, genre, price, description,
-                                      image_filename, stock, is_featured, collection)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                      image_filename, stock, is_featured,
+                                      collection, category)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (title, author, genre, price, description, image_name, stock,
-                 is_featured, collection or None),
+                 is_featured, collection or None, category_slug),
             )
             db.commit()
-            flash("Livro adicionado.", "success")
+            flash(f"{category['label']} adicionado.", "success")
             return redirect(url_for("admin_books"))
         except ValueError as e:
             flash(str(e), "error")
-    return render_template("admin/book_form.html", book=None)
+    return render_template("admin/book_form.html", book=None, category=category)
 
 
 @app.route("/adminFC/livros/<int:book_id>/editar", methods=["GET", "POST"])
@@ -777,11 +897,14 @@ def admin_book_edit(book_id):
     book = db.execute("SELECT * FROM books WHERE id = ?", (book_id,)).fetchone()
     if book is None:
         abort(404)
+    category_slug = book["category"] if book["category"] in CATEGORY_BY_SLUG else DEFAULT_CATEGORY
+    category = CATEGORY_BY_SLUG[category_slug]
+
     if request.method == "POST":
         try:
             title = request.form.get("title", "").strip()
             author = request.form.get("author", "").strip()
-            genre = request.form.get("genre", "").strip()
+            genre = _validate_genre(category_slug, request.form.get("genre", ""))
             description = request.form.get("description", "").strip()
             price = parse_price(request.form.get("price"))
             stock = parse_stock(request.form.get("stock", "0"))
@@ -789,8 +912,8 @@ def admin_book_edit(book_id):
             collection = request.form.get("collection", "").strip()
             if collection and collection not in get_collection_slugs():
                 collection = ""
-            if not title or not author or not genre:
-                raise ValueError("Título, autor e gênero são obrigatórios.")
+            if not title or not author:
+                raise ValueError("Título e autor são obrigatórios.")
 
             image_name = book["image_filename"]
             new_file = request.files.get("image")
@@ -811,11 +934,11 @@ def admin_book_edit(book_id):
                  is_featured, collection or None, book_id),
             )
             db.commit()
-            flash("Livro atualizado.", "success")
+            flash(f"{category['label']} atualizado.", "success")
             return redirect(url_for("admin_books"))
         except ValueError as e:
             flash(str(e), "error")
-    return render_template("admin/book_form.html", book=book)
+    return render_template("admin/book_form.html", book=book, category=category)
 
 
 @app.route("/adminFC/livros/<int:book_id>/remover", methods=["POST"])

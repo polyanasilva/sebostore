@@ -1170,6 +1170,18 @@ textarea { resize: vertical; }
 .card-header h2 { margin: 0; font-family: var(--font-display); text-transform: uppercase; font-size: 1.4rem; }
 .quick-actions { margin: 24px 0; }
 
+.category-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.btn-category {
+  flex: 0 0 auto;
+}
+@media (max-width: 600px) {
+  .btn-category { flex: 1 1 calc(50% - 10px); text-align: center; }
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;
@@ -1224,6 +1236,10 @@ textarea { resize: vertical; }
   border: 2px solid var(--ink);
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+.badge-category {
+  background: var(--blue);
+  color: var(--ink);
 }
 .text-danger { color: var(--danger); font-weight: 700; }
 

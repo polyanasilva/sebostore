@@ -6,7 +6,7 @@
 
 <div class="stats-grid">
   <div class="stat-card">
-    <span class="stat-label">Livros cadastrados</span>
+    <span class="stat-label">Itens cadastrados</span>
     <span class="stat-value">{{ total_books }}</span>
     <a class="btn-link" href="{{ url_for('admin_books') }}">Gerenciar →</a>
   </div>
@@ -64,7 +64,16 @@
   {% endif %}
 </section>
 
-<div class="quick-actions">
-  <a class="btn btn-primary" href="{{ url_for('admin_book_new') }}">+ Adicionar livro</a>
-</div>
+<section class="card">
+  <div class="card-header">
+    <h2>Adicionar novo item</h2>
+  </div>
+  <div class="category-buttons">
+    {% for cat in CATEGORIES %}
+      <a class="btn btn-primary btn-category" href="{{ url_for('admin_book_new', tipo=cat.slug) }}">
+        + {{ cat.label }}
+      </a>
+    {% endfor %}
+  </div>
+</section>
 {% endblock %}

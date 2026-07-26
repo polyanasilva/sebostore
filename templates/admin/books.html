@@ -1,9 +1,16 @@
 {% extends "admin/base_admin.html" %}
-{% block title %}Livros — {{ STORE_NAME }} Admin{% endblock %}
+{% block title %}Itens — {{ STORE_NAME }} Admin{% endblock %}
 {% block content %}
 <div class="page-header">
-  <h1>Livros</h1>
-  <a class="btn btn-primary" href="{{ url_for('admin_book_new') }}">+ Adicionar livro</a>
+  <h1>Itens do acervo</h1>
+</div>
+
+<div class="category-buttons" style="margin-bottom: 20px;">
+  {% for cat in CATEGORIES %}
+    <a class="btn btn-primary btn-category" href="{{ url_for('admin_book_new', tipo=cat.slug) }}">
+      + {{ cat.label }}
+    </a>
+  {% endfor %}
 </div>
 
 {% if books %}
@@ -13,6 +20,7 @@
         <th></th>
         <th>Título</th>
         <th>Autor</th>
+        <th>Categoria</th>
         <th>Gênero</th>
         <th>Preço</th>
         <th>Estoque</th>
@@ -31,6 +39,10 @@
           </td>
           <td><strong>{{ book.title }}</strong></td>
           <td>{{ book.author }}</td>
+          <td>
+            {% set cat = CATEGORY_BY_SLUG.get(book.category) %}
+            <span class="badge badge-category">{{ cat.label if cat else book.category }}</span>
+          </td>
           <td><span class="badge">{{ book.genre }}</span></td>
           <td>{{ format_brl(book.price) }}</td>
           <td class="{% if book.stock == 0 %}text-danger{% endif %}">{{ book.stock }}</td>
@@ -47,9 +59,8 @@
   </table>
 {% else %}
   <div class="empty-state">
-    <h2>Nenhum livro cadastrado</h2>
-    <p>Comece adicionando o primeiro livro.</p>
-    <a class="btn btn-primary" href="{{ url_for('admin_book_new') }}">+ Adicionar livro</a>
+    <h2>Nenhum item cadastrado</h2>
+    <p>Escolha uma categoria acima para começar.</p>
   </div>
 {% endif %}
 {% endblock %}

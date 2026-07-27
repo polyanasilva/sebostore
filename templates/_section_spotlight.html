@@ -14,11 +14,11 @@
           {% endif %}
         </a>
         <div class="spotlight-text">
-          <span class="book-genre">{{ b.genre }}</span>
+          {% if b.genre %}<span class="book-genre">{{ b.genre }}</span>{% endif %}
           <h3 class="spotlight-title">
             <a href="{{ url_for('book_detail', book_id=b.id) }}">{{ b.title }}</a>
           </h3>
-          <p class="spotlight-author">por {{ b.author }}</p>
+          {% if b.author %}<p class="spotlight-author">por {{ b.author }}</p>{% endif %}
           <p class="spotlight-description">{{ b.description or 'Um livro especial que merece destaque na nossa estante. Confira na página do livro mais sobre essa obra.' }}</p>
           <p class="spotlight-price">{{ format_brl(b.price) }}</p>
           <div class="spotlight-actions">

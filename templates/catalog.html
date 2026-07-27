@@ -43,11 +43,11 @@
           {% endif %}
         </a>
         <div class="book-info">
-          <span class="book-genre">{{ book.genre }}</span>
+          {% if book.genre %}<span class="book-genre">{{ book.genre }}</span>{% endif %}
           <h3 class="book-title">
             <a href="{{ url_for('book_detail', book_id=book.id) }}">{{ book.title }}</a>
           </h3>
-          <p class="book-author">{{ book.author }}</p>
+          {% if book.author %}<p class="book-author">{{ book.author }}</p>{% endif %}
           <p class="book-price">{{ format_brl(book.price) }}</p>
           {% if book.stock > 0 %}
             <button class="btn btn-primary add-to-cart"

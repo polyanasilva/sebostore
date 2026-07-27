@@ -106,6 +106,16 @@ CATEGORIES = [
         ],
     },
     {
+        "slug": "jogo",
+        "label": "Jogo",
+        "plural": "Jogos",
+        "genres": [
+            "Ação", "Aventura", "RPG", "Estratégia", "Simulação",
+            "Corrida", "Esporte", "Terror", "Puzzle", "Plataforma",
+            "Luta", "Tiro/FPS", "MMO", "Indie", "Outro",
+        ],
+    },
+    {
         "slug": "outros",
         "label": "Outros",
         "plural": "Outros",
@@ -160,13 +170,166 @@ def _genres_list_str() -> str:
     return ", ".join(GENRES)
 
 
-def ai_identify_book(image_bytes: bytes, mime_type: str) -> dict:
+def _call_openai_json(client, system: str, user_text: str, data_url: str,
+                      max_tokens: int = 400) -> dict:
+    """Helper: chama a OpenAI com uma imagem e retorna o JSON parseado (ou erro)."""
+    try:
+        resp = client.chat.completions.create(
+            model=OPENAI_MODEL,
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": [
+                    {"type": "text", "text": user_text},
+                    {"type": "image_url", "image_url": {"url": data_url}},
+                ]},
+            ],
+            max_tokens=max_tokens,
+            temperature=0.2,
+        )
+        return json.loads(resp.choices[0].message.content or "{}")
+    except Exception as e:
+        logger.exception("Erro chamando OpenAI")
+        return {"_error": f"Erro ao chamar a IA: {e}"}
+
+
+def _identify_action_figure(client, data_url: str) -> dict:
+    system = (
+        "Você recebe a foto de um action figure, boneco ou colecionável. "
+        "Identifique o personagem representado E a franquia (desenho/filme/anime/game) "
+        "de onde ele vem. Exemplos: personagem 'Goku' → franquia 'Dragon Ball'; "
+        "personagem 'Darth Vader' → franquia 'Star Wars'; "
+        "personagem 'Homem-Aranha' → franquia 'Marvel'. "
+        "Responda em português do Brasil. Se não reconhecer, devolva identified=false."
+    )
+    user_text = (
+        'Devolva JSON: {"identified": true, "title": "nome do personagem", '
+        '"genre": "nome da franquia"} ou '
+        '{"identified": false, "reason": "motivo curto"}.'
+    )
+    data = _call_openai_json(client, system, user_text, data_url, max_tokens=200)
+    if "_error" in data:
+        return {"identified": False, "error": data["_error"]}
+    if not data.get("identified"):
+        return {"identified": False, "reason": data.get("reason", "")}
+    return {
+        "identified": True,
+        "title": (data.get("title") or "").strip(),
+        "genre": (data.get("genre") or "").strip(),
+    }
+
+
+def _identify_cd(client, data_url: str) -> dict:
+    genres = ", ".join(CATEGORY_BY_SLUG["cd"]["genres"])
+    system = (
+        "Você recebe a foto da capa de um CD ou álbum musical. Identifique o álbum. "
+        "Responda em português do Brasil. Não invente álbuns que você não conhece — "
+        "se a capa estiver ilegível ou você não reconhecer, devolva identified=false. "
+        f"O campo 'genre' DEVE ser exatamente um destes: {genres}."
+    )
+    user_text = (
+        'Devolva JSON: {"identified": true, "title": "nome do álbum", '
+        '"author": "nome do artista ou banda", "genre": "gênero musical", '
+        '"description": "breve descrição do álbum em 2-3 frases"} '
+        'ou {"identified": false, "reason": "motivo curto"}.'
+    )
+    data = _call_openai_json(client, system, user_text, data_url, max_tokens=400)
+    if "_error" in data:
+        return {"identified": False, "error": data["_error"]}
+    if not data.get("identified"):
+        return {"identified": False, "reason": data.get("reason", "")}
+    g_in = (data.get("genre") or "").strip()
+    allowed = CATEGORY_BY_SLUG["cd"]["genres"]
+    genre = next((g for g in allowed if g.lower() == g_in.lower()), None) or "Outro"
+    return {
+        "identified": True,
+        "title": (data.get("title") or "").strip(),
+        "author": (data.get("author") or "").strip(),
+        "genre": genre,
+        "description": (data.get("description") or "").strip(),
+    }
+
+
+def _identify_movie(client, data_url: str, category_slug: str) -> dict:
+    genres = ", ".join(CATEGORY_BY_SLUG[category_slug]["genres"])
+    media = "DVD" if category_slug == "dvd" else "Blu-ray"
+    system = (
+        f"Você recebe a foto da capa de um {media} de filme ou série. Identifique-o. "
+        "Responda em português do Brasil. Não invente títulos que você não conhece — "
+        "se a capa estiver ilegível ou você não reconhecer, devolva identified=false. "
+        f"O campo 'genre' DEVE ser exatamente um destes: {genres}."
+    )
+    user_text = (
+        'Devolva JSON: {"identified": true, "title": "nome do filme/série", '
+        '"author": "nome do diretor", "genre": "gênero", '
+        '"description": "sinopse em 2-3 frases sem spoilers"} '
+        'ou {"identified": false, "reason": "motivo curto"}.'
+    )
+    data = _call_openai_json(client, system, user_text, data_url, max_tokens=400)
+    if "_error" in data:
+        return {"identified": False, "error": data["_error"]}
+    if not data.get("identified"):
+        return {"identified": False, "reason": data.get("reason", "")}
+    g_in = (data.get("genre") or "").strip()
+    allowed = CATEGORY_BY_SLUG[category_slug]["genres"]
+    genre = next((g for g in allowed if g.lower() == g_in.lower()), None) or "Outro"
+    return {
+        "identified": True,
+        "title": (data.get("title") or "").strip(),
+        "author": (data.get("author") or "").strip(),
+        "genre": genre,
+        "description": (data.get("description") or "").strip(),
+    }
+
+
+def _identify_game(client, data_url: str) -> dict:
+    genres = ", ".join(CATEGORY_BY_SLUG["jogo"]["genres"])
+    system = (
+        "Você recebe a foto da capa de um jogo (video game). Identifique o jogo. "
+        "Responda em português do Brasil. Não invente jogos que você não conhece — "
+        "se a capa estiver ilegível ou você não reconhecer, devolva identified=false. "
+        f"O campo 'genre' DEVE ser exatamente um destes: {genres}."
+    )
+    user_text = (
+        'Devolva JSON: {"identified": true, "title": "nome do jogo", '
+        '"author": "plataforma (ex: PS5, Xbox One, Switch, PC)", '
+        '"genre": "gênero do jogo", '
+        '"description": "breve descrição em 2-3 frases"} '
+        'ou {"identified": false, "reason": "motivo curto"}.'
+    )
+    data = _call_openai_json(client, system, user_text, data_url, max_tokens=400)
+    if "_error" in data:
+        return {"identified": False, "error": data["_error"]}
+    if not data.get("identified"):
+        return {"identified": False, "reason": data.get("reason", "")}
+    g_in = (data.get("genre") or "").strip()
+    allowed = CATEGORY_BY_SLUG["jogo"]["genres"]
+    genre = next((g for g in allowed if g.lower() == g_in.lower()), None) or "Outro"
+    return {
+        "identified": True,
+        "title": (data.get("title") or "").strip(),
+        "author": (data.get("author") or "").strip(),
+        "genre": genre,
+        "description": (data.get("description") or "").strip(),
+    }
+
+
+def ai_identify_book(image_bytes: bytes, mime_type: str, category_slug: str = "livro") -> dict:
     client = get_openai_client()
     if client is None:
         return {"identified": False, "error": "OPENAI_API_KEY não configurada."}
 
     b64 = base64.b64encode(image_bytes).decode("ascii")
     data_url = f"data:{mime_type};base64,{b64}"
+
+    if category_slug == "action-figure":
+        return _identify_action_figure(client, data_url)
+    if category_slug == "cd":
+        return _identify_cd(client, data_url)
+    if category_slug in ("dvd", "bluray"):
+        return _identify_movie(client, data_url, category_slug)
+    if category_slug == "jogo":
+        return _identify_game(client, data_url)
 
     system = (
         "Você é um especialista em catalogar livros para uma livraria/sebo brasileiro. "
@@ -819,10 +982,13 @@ def admin_api_identify_book():
     if not data:
         return jsonify({"identified": False, "error": "Arquivo vazio."}), 400
 
+    category_slug = (request.values.get("tipo") or "livro").strip()
+    if category_slug not in CATEGORY_BY_SLUG:
+        category_slug = "livro"
+
     mime = file.mimetype or "image/jpeg"
-    result = ai_identify_book(data, mime)
-    status = 200 if result.get("identified") or "error" not in result else 200
-    return jsonify(result), status
+    result = ai_identify_book(data, mime, category_slug)
+    return jsonify(result), 200
 
 
 @app.route("/adminFC/api/complete-book", methods=["POST"])
@@ -836,18 +1002,46 @@ def admin_api_complete_book():
     return jsonify(result), status
 
 
-def _validate_genre(category_slug: str, genre: str) -> str:
-    """Aceita o gênero se ele estiver na lista da categoria, ou se a categoria for
-    'outros' (que aceita campo livre). Retorna o gênero saneado."""
-    genre = (genre or "").strip()
+def _extract_book_fields(category_slug: str, form) -> tuple[str, str, str]:
+    """Extrai title, author, genre do form validando as regras específicas de cada categoria.
+    - action-figure: título e franquia (genre) livres; author fica vazio.
+    - jogo: título, plataforma (author, livre) e gênero (lista).
+    - outros: título obrigatório, author opcional, genre livre (obrigatório).
+    - demais: título e author obrigatórios, genre da lista da categoria.
+    """
+    title = (form.get("title") or "").strip()
+    if not title:
+        raise ValueError("Título é obrigatório.")
+
+    author = (form.get("author") or "").strip()
+    genre = (form.get("genre") or "").strip()
+
+    if category_slug == "action-figure":
+        return title, "", genre[:60]
+
+    if category_slug == "outros":
+        if not genre:
+            raise ValueError("Gênero é obrigatório.")
+        return title, author, genre[:60]
+
+    if category_slug == "jogo":
+        if not author:
+            raise ValueError("Plataforma é obrigatória.")
+        if not genre:
+            raise ValueError("Gênero é obrigatório.")
+        cat = CATEGORY_BY_SLUG.get(category_slug)
+        if cat and cat["genres"] and genre not in cat["genres"]:
+            raise ValueError("Gênero não pertence a essa categoria.")
+        return title, author[:100], genre[:60]
+
+    if not author:
+        raise ValueError("Autor é obrigatório.")
     if not genre:
         raise ValueError("Gênero é obrigatório.")
     cat = CATEGORY_BY_SLUG.get(category_slug)
-    if cat is None:
-        raise ValueError("Categoria inválida.")
-    if cat["genres"] and genre not in cat["genres"]:
+    if cat and cat["genres"] and genre not in cat["genres"]:
         raise ValueError("Gênero não pertence a essa categoria.")
-    return genre[:60]
+    return title, author, genre[:60]
 
 
 @app.route("/adminFC/livros/novo", methods=["GET", "POST"])
@@ -860,9 +1054,7 @@ def admin_book_new():
 
     if request.method == "POST":
         try:
-            title = request.form.get("title", "").strip()
-            author = request.form.get("author", "").strip()
-            genre = _validate_genre(category_slug, request.form.get("genre", ""))
+            title, author, genre = _extract_book_fields(category_slug, request.form)
             description = request.form.get("description", "").strip()
             price = parse_price(request.form.get("price"))
             stock = parse_stock(request.form.get("stock", "1"))
@@ -870,8 +1062,6 @@ def admin_book_new():
             collection = request.form.get("collection", "").strip()
             if collection and collection not in get_collection_slugs():
                 collection = ""
-            if not title or not author:
-                raise ValueError("Título e autor são obrigatórios.")
             image_name = save_upload(request.files.get("image"))
             db = get_db()
             db.execute(
@@ -902,9 +1092,7 @@ def admin_book_edit(book_id):
 
     if request.method == "POST":
         try:
-            title = request.form.get("title", "").strip()
-            author = request.form.get("author", "").strip()
-            genre = _validate_genre(category_slug, request.form.get("genre", ""))
+            title, author, genre = _extract_book_fields(category_slug, request.form)
             description = request.form.get("description", "").strip()
             price = parse_price(request.form.get("price"))
             stock = parse_stock(request.form.get("stock", "0"))
@@ -912,8 +1100,6 @@ def admin_book_edit(book_id):
             collection = request.form.get("collection", "").strip()
             if collection and collection not in get_collection_slugs():
                 collection = ""
-            if not title or not author:
-                raise ValueError("Título e autor são obrigatórios.")
 
             image_name = book["image_filename"]
             new_file = request.files.get("image")

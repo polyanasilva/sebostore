@@ -18,11 +18,11 @@
           {% endif %}
         </a>
         <div class="similar-card-info">
-          <span class="book-genre">{{ b.genre }}</span>
+          {% if b.genre %}<span class="book-genre">{{ b.genre }}</span>{% endif %}
           <h3 class="similar-card-title">
             <a href="{{ url_for('book_detail', book_id=b.id) }}">{{ b.title }}</a>
           </h3>
-          <p class="book-author">{{ b.author }}</p>
+          {% if b.author %}<p class="book-author">{{ b.author }}</p>{% endif %}
           <p class="book-price">{{ format_brl(b.price) }}</p>
           <button class="btn btn-primary btn-small add-to-cart"
                   data-id="{{ b.id }}"

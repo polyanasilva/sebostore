@@ -1633,8 +1633,8 @@ textarea { resize: vertical; }
    Responsividade mobile
    ============================================================ */
 @media (max-width: 720px) {
-  .container { padding: 0 16px; }
-  .main-content { padding: 20px 16px 48px; }
+  .container { padding: 0 18px; }
+  .main-content { padding: 20px 18px 48px; }
 
   /* Header */
   .header-inner {
@@ -1649,11 +1649,14 @@ textarea { resize: vertical; }
     padding: 5px 7px;
     letter-spacing: 0.04em;
   }
-  .cart-link { padding: 4px 8px; }
+  .cart-link { padding: 4px 6px; gap: 3px; }
+  .cart-icon { width: 20px; height: 20px; }
   .cart-badge {
-    font-size: 0.7rem;
-    padding: 0 7px;
-    min-width: 20px;
+    font-size: 0.62rem;
+    padding: 0 5px;
+    min-width: 16px;
+    border-width: 1.5px;
+    line-height: 1.4;
   }
 
   /* Home — hero */

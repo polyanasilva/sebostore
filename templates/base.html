@@ -22,8 +22,13 @@
       <nav class="site-nav">
         <a href="{{ url_for('index') }}">Início</a>
         <a href="{{ url_for('catalog') }}">Catálogo</a>
-        <a href="{{ url_for('cart') }}" class="cart-link">
-          Carrinho <span class="cart-badge" id="cart-badge">0</span>
+        <a href="{{ url_for('cart') }}" class="cart-link" aria-label="Carrinho">
+          <svg class="cart-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="9" cy="21" r="1.4"></circle>
+            <circle cx="18" cy="21" r="1.4"></circle>
+            <path d="M3 3h2l2.4 12.3a2 2 0 0 0 2 1.7h8.3a2 2 0 0 0 2-1.6L21 8H6"></path>
+          </svg>
+          <span class="cart-badge" id="cart-badge">0</span>
         </a>
       </nav>
     </div>

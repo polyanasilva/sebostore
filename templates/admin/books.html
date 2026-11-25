@@ -14,6 +14,7 @@
 </div>
 
 {% if books %}
+  <div class="table-wrap">
   <table class="table table-books">
     <thead>
       <tr>
@@ -57,6 +58,7 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
 {% else %}
   <div class="empty-state">
     <h2>Nenhum item cadastrado</h2>

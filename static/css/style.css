@@ -1593,4 +1593,178 @@ textarea { resize: vertical; }
 .similar-card-info .book-price { font-size: 1.15rem; margin: 6px 0 8px; }
 .similar-card-info .btn { margin-top: auto; padding: 7px 14px; font-size: 0.74rem; }
 
-@media (max-width: 500px) { .similar-card { flex-basis: 165px; } }
+@media (max-width: 500px) {
+  .similar-card { flex-basis: 150px; }
+  .similar-card-info { padding: 10px 12px 12px; }
+  .similar-card-title { font-size: 0.9rem; }
+  .similar-card-info .book-price { font-size: 1rem; margin: 4px 0 6px; }
+  .similar-card-info .btn { padding: 6px 10px; font-size: 0.72rem; }
+  .similar-scroll { gap: 12px; padding: 4px 0 12px; }
+}
+
+/* ============================================================
+   Cart icon (sempre, inclusive desktop)
+   ============================================================ */
+.cart-icon {
+  flex-shrink: 0;
+  display: block;
+}
+.cart-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+}
+
+/* ============================================================
+   Tabela com scroll horizontal (admin)
+   ============================================================ */
+.table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+}
+.table-wrap .table { margin: 0; min-width: 100%; }
+.table-wrap::-webkit-scrollbar { height: 6px; }
+.table-wrap::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+/* ============================================================
+   Responsividade mobile
+   ============================================================ */
+@media (max-width: 720px) {
+  .container { padding: 0 16px; }
+  .main-content { padding: 20px 16px 48px; }
+
+  /* Header */
+  .header-inner {
+    padding: 10px 0;
+    gap: 10px;
+  }
+  .brand { font-size: 1.15rem; gap: 7px; }
+  .brand-icon { width: 30px; height: 30px; font-size: 1rem; box-shadow: 1px 1px 0 var(--ink); }
+  .site-nav { gap: 6px; }
+  .site-nav a {
+    font-size: 0.85rem;
+    padding: 5px 7px;
+    letter-spacing: 0.04em;
+  }
+  .cart-link { padding: 4px 8px; }
+  .cart-badge {
+    font-size: 0.7rem;
+    padding: 0 7px;
+    min-width: 20px;
+  }
+
+  /* Home — hero */
+  .home-hero { min-height: 60vh; padding: 56px 16px; }
+  .home-hero-eyebrow { font-size: 0.7rem; letter-spacing: 0.2em; padding: 4px 12px; margin-bottom: 14px; }
+  .home-hero-tagline {
+    font-size: 1rem;
+    padding: 10px 16px;
+    margin: 6px 0 22px;
+  }
+  .home-hero-cta {
+    padding: 12px 22px;
+    font-size: 0.85rem;
+    letter-spacing: 0.08em;
+  }
+
+  /* Home — seções */
+  .home-sections { padding: 40px 0 24px; }
+  .home-section { margin-bottom: 36px; }
+  .home-section-title { font-size: 1.4rem; padding: 4px 12px; }
+
+  /* Spotlight compacto no mobile */
+  .spotlight { margin: 32px 0; padding: 20px 16px; }
+  .spotlight::before, .spotlight::after { display: none; }
+  .spotlight-eyebrow { font-size: 0.68rem; letter-spacing: 0.22em; padding: 3px 12px; margin-bottom: 18px; }
+  .spotlight-slide { gap: 14px; }
+  .spotlight-cover { max-width: 160px !important; }
+  .spotlight-title { font-size: 1.4rem; margin: 2px 0 4px; }
+  .spotlight-author { font-size: 0.9rem; margin: 0 0 12px; }
+  .spotlight-description {
+    font-size: 0.9rem;
+    line-height: 1.5;
+    margin: 0 0 14px;
+    -webkit-line-clamp: 3;
+  }
+  .spotlight-price {
+    font-size: 1.4rem;
+    padding: 2px 12px;
+    margin: 0 0 14px;
+  }
+  .spotlight-controls { gap: 14px; margin-top: 20px; }
+  .spotlight-arrow { width: 38px; height: 38px; font-size: 1.2em; }
+  .spotlight-dot { width: 8px; height: 8px; }
+  .spotlight-dot.is-active { width: 24px; }
+
+  /* Page title e headings */
+  .page-title { padding: 24px 0 10px; }
+  .page-title h1 { font-size: 1.8rem; padding: 6px 16px; }
+  .page-title p { font-size: 0.95rem; margin-top: 12px; }
+  .page-header { margin-bottom: 14px; }
+  .page-header h1 { font-size: 1.5rem; }
+  .book-detail { padding: 18px; gap: 20px; }
+  .book-detail-info h1 { font-size: 1.6rem; }
+
+  /* Admin */
+  .admin-body .main-content { padding: 16px 12px 40px; }
+  .admin-body .page-header h1 { font-size: 1.4rem; }
+  .admin-body h1 { font-size: 1.4rem; }
+  .stats-grid { gap: 12px; }
+  .stat-value { font-size: 1.6rem; }
+  .card { padding: 16px; }
+  .login-card { padding: 24px; margin: 24px auto; }
+  .login-card h1 { font-size: 1.5rem; }
+  .table th, .table td { padding: 8px 10px; font-size: 0.85rem; }
+  .thumb, .thumb-placeholder { width: 36px; height: 50px; }
+
+  /* Admin nav vira tira com scroll horizontal se não couber */
+  .admin-header .site-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+    scrollbar-width: none;
+    padding-bottom: 4px;
+  }
+  .admin-header .site-nav::-webkit-scrollbar { display: none; }
+  .admin-header .site-nav a { white-space: nowrap; flex-shrink: 0; }
+  .admin-header .header-inner { flex-wrap: wrap; }
+
+  /* Botões de categoria: 2 por linha, altura uniforme */
+  .category-buttons { gap: 8px; }
+  .btn-category {
+    flex: 1 1 calc(50% - 8px);
+    min-width: 0;
+    padding: 10px 12px;
+    font-size: 0.82rem;
+    letter-spacing: 0.08em;
+    text-align: center;
+  }
+
+  /* Form book: image uploader mais baixo */
+  .image-uploader-box { max-width: 240px; margin: 0 auto; }
+  .ai-banner { padding: 12px 14px; gap: 10px; }
+  .ai-banner strong { font-size: 0.95rem; }
+  .form-row { gap: 10px; }
+  .form-wide { max-width: 100%; }
+
+  /* Filtros */
+  .filters { padding: 12px; gap: 8px; }
+  .filters input[type="search"],
+  .filters select { flex-basis: 100%; }
+
+  /* Footer */
+  .site-footer { padding: 32px 16px 24px; margin-top: 40px; }
+  .footer-brand { font-size: 1.6rem; }
+}
+
+@media (max-width: 420px) {
+  .site-nav { gap: 4px; }
+  .site-nav a { font-size: 0.78rem; padding: 4px 6px; }
+  .brand { font-size: 1rem; }
+  .brand-icon { width: 26px; height: 26px; }
+  .home-hero-title { line-height: 0.95; }
+}
